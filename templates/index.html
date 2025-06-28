@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compensation Analysis Dashboard</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            margin-top: 20px;
+        }
+        .card-header {
+            font-weight: bold;
+        }
+        .chart-container {
+            margin-top: 20px;
+        }
+        .flash-message {
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Compensation Analysis Dashboard</h1>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} flash-message" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- File Upload Section -->
+        <div class="card">
+            <div class="card-header">
+                Upload New Report
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="file">Select PDF report to upload:</label>
+                        <input type="file" class="form-control-file" name="file" id="file" accept=".pdf">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload and Process</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Analysis Section -->
+        <div class="chart-container">
+            <h2>Analysis</h2>
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card mb-4">
+                        <div class="card-header">Income Trend</div>
+                        <div class="card-body">
+                            <img src="{{ url_for('static', filename='reports/income_trend.png') }}?v={{ range(1, 1000) | random }}" class="img-fluid" alt="Income Trend">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="card mb-4">
+                        <div class="card-header">Seasonal Trends</div>
+                        <div class="card-body">
+                            <img src="{{ url_for('static', filename='reports/seasonal_trends.png') }}?v={{ range(1, 1000) | random }}" class="img-fluid" alt="Seasonal Trends">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="card mb-4">
+                        <div class="card-header">Procedure Profitability</div>
+                        <div class="card-body">
+                            <img src="{{ url_for('static', filename='reports/procedure_profitability.png') }}?v={{ range(1, 1000) | random }}" class="img-fluid" alt="Procedure Profitability">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="card mb-4">
+                        <div class="card-header">Payer Performance</div>
+                        <div class="card-body">
+                            <img src="{{ url_for('static', filename='reports/payer_performance.png') }}?v={{ range(1, 1000) | random }}" class="img-fluid" alt="Payer Performance">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charge Transactions Table -->
+        <div class="card mt-4">
+            <div class="card-header">
+                Charge Transaction Data
+            </div>
+            <div class="card-body">
+                {% if transactions_data %}
+                    {{ transactions_data|safe }}
+                {% else %}
+                    <p class="text-center">No transaction data available.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
