@@ -107,150 +107,125 @@ class DataLoader:
             return None
     
     def _insert_charge_transactions(self, df: pd.DataFrame, summary_id: int) -> bool:
-        """Insert charge transaction data."""
+        """Insert or update charge transaction data."""
         try:
-            # Map common column names to our schema
-            column_mapping = {
-                # CPT Code mappings
-                'CPT Code': 'cpt_code',
-                'cpt_code': 'cpt_code',
-                'CPT': 'cpt_code',
-                'Procedure Code': 'cpt_code',
-                
-                # Amount mappings - use chg_amt as billed_amount
-                'Billed Amount': 'billed_amount',
-                'billed_amount': 'billed_amount',
-                'Billed': 'billed_amount',
-                'Amount Billed': 'billed_amount',
-                'chg_amt': 'billed_amount',  # Our extractor uses this
-                'Paid Amount': 'paid_amount',
-                'paid_amount': 'paid_amount',
-                'Paid': 'paid_amount',
-                'Amount Paid': 'paid_amount',
-                
-                # Insurance mappings
-                'Insurance': 'insurance_carrier',
-                'insurance_carrier': 'insurance_carrier',
-                'Insurance Carrier': 'insurance_carrier',
-                'Carrier': 'insurance_carrier',
-                'Payer': 'insurance_carrier',
-                'insurance_type': 'insurance_carrier',  # Our extractor uses this
-                
-                # Case ID mappings
-                'Case ID': 'case_id',
-                'case_id': 'case_id',
-                'Ticket': 'case_id',
-                'Ticket Number': 'case_id',
-                'ticket_ref': 'case_id',  # Our extractor uses this
-                
-                # Date mappings
-                'Service Date': 'service_date',
-                'service_date': 'service_date',
-                'Date': 'service_date',
-                'Date of Service': 'service_date',
-                'date_of_service': 'service_date'  # Our extractor uses this
-            }
-            
-            # Rename columns based on mapping
-            df_mapped = df.copy()
-            for old_name, new_name in column_mapping.items():
-                if old_name in df_mapped.columns:
-                    df_mapped = df_mapped.rename(columns={old_name: new_name})
-            
-            inserted_count = 0
-            for _, row in df_mapped.iterrows():
+            upserted_count = 0
+            for _, row in df.iterrows():
                 try:
-                    # Convert monetary values
-                    billed_amount = self._parse_monetary_value(row.get('billed_amount'))
-                    paid_amount = self._parse_monetary_value(row.get('paid_amount'))
+                    case_id = str(row.get('Phys Ticket Ref#', '')).strip()
+                    if not case_id:
+                        continue
+
+                    record_data = {
+                        'summary_id': summary_id,
+                        'phys_ticket_ref': str(row.get('Phys Ticket Ref#', '')).strip(),
+                        'patient_name': str(row.get('patient_name', '')).strip(),
+                        'note': str(row.get('Note', '')).strip(),
+                        'original_chg_mo': str(row.get('Original Chg Mo', '')).strip(),
+                        'site_code': str(row.get('Site Code', '')).strip(),
+                        'serv_type': str(row.get('Serv Type', '')).strip(),
+                        'cpt_code': str(row.get('CPT Code', '')).strip(),
+                        'pay_code': str(row.get('Pay Code', '')).strip(),
+                        'start_time': str(row.get('Start Time', '')).strip(),
+                        'stop_time': str(row.get('Stop Time', '')).strip(),
+                        'ob_case_pos': str(row.get('OB Case Pos', '')).strip(),
+                        'date_of_service': str(row.get('Date of Service', '')).strip(),
+                        'date_of_post': str(row.get('Date of Post', '')).strip(),
+                        'split_percent': str(row.get('Split %', '')).strip(),
+                        'anes_time_min': str(row.get('Anes Time (Min)', '')).strip(),
+                        'anes_base_units': str(row.get('Anes Base Units', '')).strip(),
+                        'med_base_units': str(row.get('Med Base Units', '')).strip(),
+                        'other_units': str(row.get('Other Units', '')).strip(),
+                        'chg_amt': str(row.get('Chg Amt', '')).strip(),
+                        'sub_pool_percent': str(row.get('Sub Pool %', '')).strip(),
+                        'sb_pl_time_min': str(row.get('Sb Pl Time (Min)', '')).strip(),
+                        'anes_base': str(row.get('Anes Base', '')).strip(),
+                        'med_base': str(row.get('Med Base', '')).strip(),
+                        'grp_pool_percent': str(row.get('Grp Pool %', '')).strip(),
+                        'gr_pl_time_min': str(row.get('Gr Pl Time (Min)', '')).strip(),
+                        'grp_anes_base': str(row.get('Anes Base', '')).strip(),
+                        'grp_med_base': str(row.get('Med Base', '')).strip(),
+                    }
+
+                    # Use a composite key to find the existing transaction
+                    # Include start_time AND stop_time to differentiate split cases
+                    # This ensures records with different time ranges aren't merged
+                    existing_transaction = self.session.query(ChargeTransaction).filter_by(
+                        phys_ticket_ref=case_id,
+                        cpt_code=record_data['cpt_code'],
+                        date_of_service=record_data['date_of_service'],
+                        start_time=record_data['start_time'],
+                        stop_time=record_data['stop_time']
+                    ).first()
                     
-                    # Convert date
-                    service_date = self._parse_date_value(row.get('service_date'))
+                    if existing_transaction:
+                        # Update the existing record
+                        for key, value in record_data.items():
+                            setattr(existing_transaction, key, value)
+                    else:
+                        # Insert a new record
+                        new_transaction = ChargeTransaction(**record_data)
+                        self.session.add(new_transaction)
                     
-                    transaction = ChargeTransaction(
-                        summary_id=summary_id,
-                        case_id=str(row.get('case_id', '')).strip() if row.get('case_id') else None,
-                        cpt_code=str(row.get('cpt_code', '')).strip() if row.get('cpt_code') else None,
-                        billed_amount=billed_amount,
-                        paid_amount=paid_amount,
-                        insurance_carrier=str(row.get('insurance_carrier', '')).strip() if row.get('insurance_carrier') else None,
-                        service_date=service_date
-                    )
-                    
-                    self.session.add(transaction)
-                    inserted_count += 1
-                    
+                    upserted_count += 1
                 except Exception as e:
-                    logger.warning(f"Error inserting charge transaction row: {str(e)}")
+                    logger.warning(f"Error upserting charge transaction row: {str(e)}")
                     continue
             
-            logger.info(f"Inserted {inserted_count} charge transactions")
+            logger.info(f"Upserted {upserted_count} charge transactions")
             return True
-            
         except Exception as e:
-            logger.error(f"Error inserting charge transactions: {str(e)}")
+            logger.error(f"Error upserting charge transactions: {str(e)}")
             return False
     
     def _insert_anesthesia_cases(self, df: pd.DataFrame, summary_id: int) -> bool:
-        """Insert anesthesia case data from ticket tracking."""
+        """Insert or update anesthesia case data from ticket tracking."""
         try:
             # Map common column names to our schema
             column_mapping = {
-                'Ticket Number': 'case_id',
-                'ticket_number': 'case_id',
-                'Case ID': 'case_id',
-                'case_id': 'case_id',
-                'Ticket': 'case_id',
-                'Case Type': 'case_type',
-                'case_type': 'case_type',
-                'Anesthesia Type': 'case_type',
-                'Type': 'case_type',
-                'Procedure': 'case_type',
-                'Date Closed': 'date_closed',
-                'date_closed': 'date_closed',
-                'Closed Date': 'date_closed',
-                'Date': 'date_closed',
-                'Commission': 'commission_earned',
-                'commission_earned': 'commission_earned',
-                'Commission Earned': 'commission_earned',
-                'Earned': 'commission_earned'
+                'Ticket Number': 'case_id', 'ticket_number': 'case_id', 'Case ID': 'case_id', 'case_id': 'case_id', 'Ticket': 'case_id',
+                'Case Type': 'case_type', 'case_type': 'case_type', 'Anesthesia Type': 'case_type', 'Type': 'case_type', 'Procedure': 'case_type',
+                'Date Closed': 'date_closed', 'date_closed': 'date_closed', 'Closed Date': 'date_closed', 'Date': 'date_closed',
+                'Commission': 'commission_earned', 'commission_earned': 'commission_earned', 'Commission Earned': 'commission_earned', 'Earned': 'commission_earned'
             }
             
-            # Rename columns based on mapping
             df_mapped = df.copy()
             for old_name, new_name in column_mapping.items():
                 if old_name in df_mapped.columns:
                     df_mapped = df_mapped.rename(columns={old_name: new_name})
             
-            inserted_count = 0
+            upserted_count = 0
             for _, row in df_mapped.iterrows():
                 try:
-                    # Convert monetary values
-                    commission_earned = self._parse_monetary_value(row.get('commission_earned'))
+                    case_id = str(row.get('case_id', '')).strip()
+                    if not case_id:
+                        continue
+
+                    record_data = {
+                        'summary_id': summary_id,
+                        'case_type': str(row.get('case_type', '')).strip() if row.get('case_type') else None,
+                        'date_closed': self._parse_date_value(row.get('date_closed')),
+                        'commission_earned': self._parse_monetary_value(row.get('commission_earned'))
+                    }
+
+                    existing_case = self.session.query(AnesthesiaCase).filter_by(case_id=case_id).first()
+
+                    if existing_case:
+                        for key, value in record_data.items():
+                            setattr(existing_case, key, value)
+                    else:
+                        new_case = AnesthesiaCase(case_id=case_id, **record_data)
+                        self.session.add(new_case)
                     
-                    # Convert date
-                    date_closed = self._parse_date_value(row.get('date_closed'))
-                    
-                    case = AnesthesiaCase(
-                        summary_id=summary_id,
-                        case_id=str(row.get('case_id', '')).strip() if row.get('case_id') else None,
-                        case_type=str(row.get('case_type', '')).strip() if row.get('case_type') else None,
-                        date_closed=date_closed,
-                        commission_earned=commission_earned
-                    )
-                    
-                    self.session.add(case)
-                    inserted_count += 1
-                    
+                    upserted_count += 1
                 except Exception as e:
-                    logger.warning(f"Error inserting anesthesia case row: {str(e)}")
+                    logger.warning(f"Error upserting anesthesia case row: {str(e)}")
                     continue
             
-            logger.info(f"Inserted {inserted_count} anesthesia cases")
+            logger.info(f"Upserted {upserted_count} anesthesia cases")
             return True
-            
         except Exception as e:
-            logger.error(f"Error inserting anesthesia cases: {str(e)}")
+            logger.error(f"Error upserting anesthesia cases: {str(e)}")
             return False
     
     def _parse_monetary_value(self, value) -> float:
@@ -276,6 +251,10 @@ class DataLoader:
         if pd.isna(value) or value is None:
             return None
         
+        # Handle cases where the value is already a datetime object
+        if isinstance(value, datetime):
+            return value.date()
+            
         try:
             str_value = str(value).strip()
             if not str_value or str_value.lower() in ['', 'nan', 'none']:

@@ -101,47 +101,75 @@
                     <table class="table table-striped table-hover" id="transactionsTable">
                         <thead>
                             <tr>
-                                <th>Ticket Ref</th>
-                                <th>Service Type</th>
+                                {% macro sortable_header(column, display_name) %}
+                                    <th>
+                                        <a href="{{ url_for('tickets', sort_by=column, sort_order='desc' if sort_by == column and sort_order == 'asc' else 'asc') }}">
+                                            {{ display_name }}
+                                            {% if sort_by == column %}
+                                                <i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>
+                                            {% endif %}
+                                        </a>
+                                    </th>
+                                {% endmacro %}
+                                <th>Phys Ticket Ref#</th>
+                                <th>Patient Name</th>
+                                <th>Note</th>
+                                <th>Original Chg Mo</th>
+                                <th>Site Code</th>
+                                <th>Serv Type</th>
                                 <th>CPT Code</th>
-                                <th>Insurance</th>
-                                <th>Service Date</th>
-                                <th>Time (min)</th>
-                                <th>Billed Amount</th>
-                                <th>Base Units</th>
+                                <th>Pay Code</th>
+                                <th>Start Time</th>
+                                <th>Stop Time</th>
+                                <th>OB Case Pos</th>
+                                <th>Date of Service</th>
+                                <th>Date of Post</th>
+                                <th>Split %</th>
+                                <th>Anes Time (Min)</th>
+                                <th>Anes Base Units</th>
+                                <th>Med Base Units</th>
+                                <th>Other Units</th>
+                                <th>Chg Amt</th>
+                                <th>Sub Pool %</th>
+                                <th>Sb Pl Time (Min)</th>
+                                <th>Anes Base</th>
+                                <th>Med Base</th>
+                                <th>Grp Pool %</th>
+                                <th>Gr Pl Time (Min)</th>
+                                <th>Anes Base</th>
+                                <th>Med Base</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for row in transactions_data %}
                             <tr>
-                                <td><code>{{ row.case_id or row.ticket_ref or 'N/A' }}</code></td>
-                                <td>
-                                    <span class="badge badge-{% if row.serv_type == 'An' %}primary{% elif row.serv_type == 'Me' %}success{% else %}secondary{% endif %}">
-                                        {{ row.serv_type or 'N/A' }}
-                                    </span>
-                                </td>
-                                <td><strong>{{ row.cpt_code or 'N/A' }}</strong></td>
-                                <td>{{ row.insurance_carrier or row.insurance_type or 'N/A' }}</td>
-                                <td>{{ row.service_date or row.date_of_service or 'N/A' }}</td>
-                                <td class="text-center">{{ row.time_min or 0 }}</td>
-                                <td class="text-success font-weight-bold">
-                                    {% if row.billed_amount %}
-                                        ${{ "{:,.2f}".format(row.billed_amount) }}
-                                    {% elif row.chg_amt %}
-                                        ${{ "{:,.2f}".format(row.chg_amt) }}
-                                    {% else %}
-                                        $0.00
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    {% if row.anes_base_units %}
-                                        {{ "{:.1f}".format(row.anes_base_units) }}
-                                    {% elif row.med_base_units %}
-                                        {{ "{:.1f}".format(row.med_base_units) }}
-                                    {% else %}
-                                        0.0
-                                    {% endif %}
-                                </td>
+                                <td>{{ row.phys_ticket_ref or '' }}</td>
+                                <td>{{ row.patient_name or '' }}</td>
+                                <td>{{ row.note or '' }}</td>
+                                <td>{{ row.original_chg_mo or '' }}</td>
+                                <td>{{ row.site_code or '' }}</td>
+                                <td>{{ row.serv_type or '' }}</td>
+                                <td>{{ row.cpt_code or '' }}</td>
+                                <td>{{ row.pay_code or '' }}</td>
+                                <td>{{ row.start_time or '' }}</td>
+                                <td>{{ row.stop_time or '' }}</td>
+                                <td>{{ row.ob_case_pos or '' }}</td>
+                                <td>{{ row.date_of_service or '' }}</td>
+                                <td>{{ row.date_of_post or '' }}</td>
+                                <td>{{ row.split_percent or '' }}</td>
+                                <td>{{ row.anes_time_min or '' }}</td>
+                                <td>{{ row.anes_base_units or '' }}</td>
+                                <td>{{ row.med_base_units or '' }}</td>
+                                <td>{{ row.other_units or '' }}</td>
+                                <td>{{ row.chg_amt or '' }}</td>
+                                <td>{{ row.sub_pool_percent or '' }}</td>
+                                <td>{{ row.sb_pl_time_min or '' }}</td>
+                                <td>{{ row.anes_base or '' }}</td>
+                                <td>{{ row.med_base or '' }}</td>
+                                <td>{{ row.grp_pool_percent or '' }}</td>
+                                <td>{{ row.gr_pl_time_min or '' }}</td>
+                                <td>{{ row.grp_anes_base or '' }}</td>
+                                <td>{{ row.grp_med_base or '' }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

@@ -170,22 +170,33 @@ class CompensationAnalyzer:
         numeric_cols = ['claim_count', 'avg_billed', 'avg_paid', 'total_billed', 'total_paid', 'overall_payment_rate']
         df[numeric_cols] = df[numeric_cols].fillna(0)
         return df
-    def get_charge_transactions(self) -> pd.DataFrame:
+    def get_charge_transactions(self, sort_by='phys_ticket_ref', sort_order='asc') -> pd.DataFrame:
         """
-        Fetch all charge transactions.
+        Fetch all charge transactions with sorting.
         
+        Args:
+            sort_by (str): Column to sort by.
+            sort_order (str): 'asc' or 'desc'.
+
         Returns:
             DataFrame: All charge transactions.
         """
         try:
-            # Use the correct table name from our schema
-            query = "SELECT * FROM charge_transactions ORDER BY service_date DESC"
+            # Validate sort_by to prevent SQL injection
+            from database_models import ChargeTransaction
+            allowed_columns = [c.name for c in ChargeTransaction.__table__.columns]
+            if sort_by not in allowed_columns:
+                sort_by = 'phys_ticket_ref'
+
+            # Validate sort_order
+            if sort_order.lower() not in ['asc', 'desc']:
+                sort_order = 'asc'
+
+            query = f"SELECT * FROM charge_transactions ORDER BY {sort_by} {sort_order.upper()}"
             df = pd.read_sql_query(query, self.engine)
             
-            # Only fill missing values for columns that actually exist
             if not df.empty:
-                # Check which numeric columns exist in the dataframe
-                possible_numeric_cols = ['billed_amount', 'paid_amount']
+                possible_numeric_cols = ['billed_amount', 'paid_amount', 'time_min', 'anes_base_units', 'med_base_units', 'other_units', 'chg_amt']
                 existing_numeric_cols = [col for col in possible_numeric_cols if col in df.columns]
                 
                 if existing_numeric_cols:
@@ -194,6 +205,18 @@ class CompensationAnalyzer:
             return df
         except Exception as e:
             logger.error(f"Error getting charge transactions: {str(e)}")
+            return pd.DataFrame()
+
+    def get_master_cases(self) -> pd.DataFrame:
+        """
+        Retrieves all master cases from the database.
+        """
+        try:
+            from database_models import MasterCase
+            query = self.session.query(MasterCase)
+            return pd.read_sql(query.statement, self.session.bind)
+        except Exception as e:
+            logger.error(f"Error getting master cases: {str(e)}")
             return pd.DataFrame()
     
     def get_seasonal_trends(self) -> pd.DataFrame:

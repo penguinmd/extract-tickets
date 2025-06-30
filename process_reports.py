@@ -42,7 +42,7 @@ class ReportProcessor:
     
     def process_single_file(self, file_path: str) -> bool:
         """
-        Process a single PDF report file.
+        Process a single PDF report file, with checks for duplicates.
         
         Args:
             file_path (str): Path to the PDF file
@@ -51,26 +51,28 @@ class ReportProcessor:
             bool: True if successful, False otherwise
         """
         try:
+            file_name = os.path.basename(file_path)
+            
+            # Skip if already processed
+            if self._is_already_processed(file_name):
+                logger.info(f"Skipping already processed file: {file_name}")
+                self.stats['skipped_files'].append(file_name)
+                return True # Return True to not count as a failure
+
             logger.info(f"Processing file: {file_path}")
             
-            # Check if file exists
             if not os.path.exists(file_path):
                 logger.error(f"File not found: {file_path}")
                 return False
             
-            # Extract data
             summary_data, charge_transactions, ticket_tracking = self.extractor.extract_data_from_report(file_path)
             
-            # Load data into database
             success = self.loader.load_report_data(summary_data, charge_transactions, ticket_tracking)
             
             if success:
                 logger.info(f"Successfully processed: {file_path}")
-                
-                # Archive the file if requested
                 if self.archive_processed:
                     self._archive_file(file_path)
-                
                 return True
             else:
                 logger.error(f"Failed to load data for: {file_path}")
@@ -153,6 +155,15 @@ class ReportProcessor:
         except Exception as e:
             logger.warning(f"Could not archive file {file_path}: {str(e)}")
     
+    def _is_already_processed(self, filename: str) -> bool:
+        """Check if a file has already been processed by checking the database."""
+        from database_models import get_session, MonthlySummary
+        session = get_session()
+        try:
+            return session.query(MonthlySummary).filter_by(source_file=filename).count() > 0
+        finally:
+            session.close()
+
     def _log_processing_stats(self):
         """Log processing statistics."""
         logger.info("=== PROCESSING STATISTICS ===")
@@ -171,11 +182,55 @@ class ReportProcessor:
             for skipped_file in self.stats['skipped_files']:
                 logger.info(f"  - {skipped_file}")
 
+def process_pdf_files(file_paths):
+    """
+    Convenience function to process a list of PDF files.
+    
+    Args:
+        file_paths: List of paths to PDF files
+        
+    Returns:
+        dict: Processing statistics
+    """
+    processor = ReportProcessor(archive_processed=False)
+    stats = {
+        'total_files': 0,
+        'processed_successfully': 0,
+        'failed_files': []
+    }
+    
+    for file_path in file_paths:
+        stats['total_files'] += 1
+        try:
+            success = processor.process_single_file(file_path)
+            if success:
+                stats['processed_successfully'] += 1
+            else:
+                stats['failed_files'].append(file_path)
+        except Exception as e:
+            logger.error(f"Error processing {file_path}: {str(e)}")
+            stats['failed_files'].append(file_path)
+    
+    return stats
+
+def process_single_report(file_path):
+    """
+    Convenience function to process a single PDF file.
+    
+    Args:
+        file_path: Path to PDF file
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    processor = ReportProcessor(archive_processed=False)
+    return processor.process_single_file(file_path)
+
 def main():
     """Main function with command line interface."""
     parser = argparse.ArgumentParser(description='Process medical compensation reports')
     parser.add_argument('path', help='Path to PDF file or directory containing PDF files')
-    parser.add_argument('--no-archive', action='store_true', 
+    parser.add_argument('--no-archive', action='store_true',
                        help='Do not archive processed files')
     parser.add_argument('--log-file', default='processing.log',
                        help='Log file path (default: processing.log)')

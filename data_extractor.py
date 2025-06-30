@@ -246,26 +246,12 @@ class MedicalReportExtractor:
         try:
             if not table or len(table) < 2:
                 return pd.DataFrame()
-            
-            # Handle multi-line headers by merging the first two rows
-            if len(table) > 1:
-                header_rows = [table[0], table[1]]
-                headers = [f"{h1 or ''} {h2 or ''}".strip() for h1, h2 in zip(*header_rows)]
-                data = table[2:]
-            else:
-                headers = table[0]
-                data = table[1:]
 
-            # Clean headers
-            clean_headers = [str(h).replace('\n', ' ').strip() for h in headers]
+            headers = [str(h).replace('\n', ' ').strip() for h in table[0]]
+            data = table[1:]
             
-            # Create DataFrame
-            df = pd.DataFrame(data, columns=clean_headers)
-            
-            # Handle multi-line rows by forward-filling missing values
+            df = pd.DataFrame(data, columns=headers)
             df = df.ffill()
-            
-            # Remove completely empty rows
             df = df.dropna(how='all')
             
             return df
@@ -315,56 +301,8 @@ class MedicalReportExtractor:
             # Create a copy to avoid modifying the original
             cleaned_df = df.copy()
             
-            # Map common column variations to standard names
-            column_mapping = {
-                'ticket': 'ticket_ref',
-                'patient': 'patient_name',
-                'patient name': 'patient_name',
-                'site': 'site_code',
-                'serv': 'serv_type',
-                'service': 'serv_type',
-                'cpt': 'cpt_code',
-                'cpt code': 'cpt_code',
-                'pay': 'pay_code',
-                'pay code': 'pay_code',
-                'start': 'start_time',
-                'start time': 'start_time',
-                'stop': 'stop_time',
-                'stop time': 'stop_time',
-                'date of service': 'date_of_service',
-                'dos': 'date_of_service',
-                'date of post': 'date_of_post',
-                'dop': 'date_of_post',
-                'time': 'time_min',
-                'time min': 'time_min',
-                'minutes': 'time_min',
-                'anes base': 'anes_base_units',
-                'anes base units': 'anes_base_units',
-                'med base': 'med_base_units',
-                'med base units': 'med_base_units',
-                'other': 'other_units',
-                'other units': 'other_units',
-                'chg': 'chg_amt',
-                'chg amt': 'chg_amt',
-                'charge': 'chg_amt',
-                'amount': 'chg_amt'
-            }
-            
-            # Rename columns based on mapping
-            for old_name, new_name in column_mapping.items():
-                matching_cols = [col for col in cleaned_df.columns if old_name.lower() in str(col).lower()]
-                if matching_cols:
-                    cleaned_df = cleaned_df.rename(columns={matching_cols[0]: new_name})
-            
-            # Convert numeric columns
-            numeric_columns = ['time_min', 'anes_base_units', 'med_base_units', 'other_units', 'chg_amt']
-            for col in numeric_columns:
-                if col in cleaned_df.columns:
-                    cleaned_df[col] = pd.to_numeric(cleaned_df[col].astype(str).str.replace(',', ''), errors='coerce')
-            
-            # Remove rows where ticket_ref is not a valid 8-digit number
-            if 'ticket_ref' in cleaned_df.columns:
-                cleaned_df = cleaned_df[cleaned_df['ticket_ref'].astype(str).str.match(r'^\d{8}$', na=False)]
+            # Do not rename columns or convert data types
+            pass
             
             # Remove completely empty rows
             cleaned_df = cleaned_df.dropna(how='all')
@@ -430,243 +368,227 @@ class MedicalReportExtractor:
 
     def _parse_text_based_tables(self, page_text: str, page_num: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Parse table data from text when structured tables are not detected."""
-        charge_transactions_data = []
-        ticket_tracking_data = []
-
+        
         lines = page_text.split('\n')
+        transactions = []
         
         for line in lines:
-            # Skip header lines and empty lines
-            if not line.strip() or 'Ticket' in line or 'Patient' in line or 'Total:' in line:
-                continue
+            line = line.strip()
             
-            # Look for lines starting with 8-digit ticket numbers
-            if re.match(r'^\d{8}', line.strip()):
-                # Split the line into parts
-                parts = line.strip().split()
-                
-                if len(parts) < 10:  # Skip lines that are too short
-                    continue
-                
-                try:
-                    # Extract basic fields that are consistent
-                    ticket_ref = parts[0]
-                    
-                    # Find the patient name (everything before UF/WC)
-                    patient_parts = []
-                    site_idx = None
-                    for i, part in enumerate(parts[1:], 1):
-                        if part in ['UF', 'WC']:
-                            site_idx = i
-                            break
-                        patient_parts.append(part)
-                    
-                    if site_idx is None:
-                        continue  # Skip if we can't find site code
-                    
-                    patient_name = ' '.join(patient_parts)
-                    site_code = parts[site_idx]
-                    
-                    # Service type should be next
-                    if site_idx + 1 >= len(parts):
-                        continue
-                    serv_type = parts[site_idx + 1]
-                    
-                    # CPT code should be next
-                    if site_idx + 2 >= len(parts):
-                        continue
-                    cpt_code = parts[site_idx + 2]
-                    
-                    # Insurance type
-                    if site_idx + 3 >= len(parts):
-                        continue
-                    insurance_type = parts[site_idx + 3]
-                    
-                    # For anesthesia records, look for time fields
-                    if serv_type == 'An' and len(parts) >= site_idx + 8:
-                        # Try to find time fields (HH:MM format)
-                        start_time = None
-                        stop_time = None
-                        date_service = None
-                        date_post = None
-                        
-                        # Look for time patterns
-                        for i in range(site_idx + 4, min(site_idx + 10, len(parts))):
-                            if re.match(r'\d{2}:\d{2}', parts[i]):
-                                if start_time is None:
-                                    start_time = parts[i]
-                                elif stop_time is None:
-                                    stop_time = parts[i]
-                                    break
-                        
-                        # Look for date patterns (M/D/YY format)
-                        for i in range(site_idx + 4, min(len(parts) - 5, len(parts))):
-                            if re.match(r'\d{1,2}/\d{1,2}/\d{2}', parts[i]):
-                                if date_service is None:
-                                    date_service = parts[i]
-                                elif date_post is None:
-                                    date_post = parts[i]
-                                    break
-                        
-                        # Look for numeric values at the end
-                        numeric_parts = []
-                        for part in parts[-10:]:  # Last 10 parts likely contain numeric data
-                            try:
-                                # Try to convert to float, handling commas
-                                val = float(part.replace(',', ''))
-                                numeric_parts.append(val)
-                            except ValueError:
-                                continue
-                        
-                        # Extract time, base units, and charge amount
-                        time_min = 0
-                        anes_base_units = 0.0
-                        med_base_units = 0.0
-                        other_units = 0.0
-                        chg_amt = 0.0
-                        
-                        if len(numeric_parts) >= 5:
-                            time_min = int(numeric_parts[0]) if numeric_parts[0] > 0 else 0
-                            anes_base_units = numeric_parts[1]
-                            med_base_units = numeric_parts[2]
-                            other_units = numeric_parts[3]
-                            chg_amt = numeric_parts[4]
-                        
-                        charge_transactions_data.append({
-                            'ticket_ref': ticket_ref,
-                            'patient_name': patient_name,
-                            'site_code': site_code,
-                            'serv_type': serv_type,
-                            'cpt_code': cpt_code,
-                            'insurance_type': insurance_type,
-                            'start_time': start_time,
-                            'stop_time': stop_time,
-                            'date_of_service': date_service,
-                            'date_of_post': date_post,
-                            'time_min': time_min,
-                            'anes_base_units': anes_base_units,
-                            'med_base_units': med_base_units,
-                            'other_units': other_units,
-                            'chg_amt': chg_amt,
-                        })
-                    
-                    elif serv_type in ['Me', 'Mo']:
-                        # Medical/Modifier records have different structure
-                        # Look for numeric values
-                        numeric_parts = []
-                        for part in parts[-8:]:  # Last 8 parts likely contain numeric data
-                            try:
-                                val = float(part.replace(',', ''))
-                                numeric_parts.append(val)
-                            except ValueError:
-                                continue
-                        
-                        # Find date
-                        date_service = None
-                        date_post = None
-                        for i in range(site_idx + 4, min(len(parts) - 3, len(parts))):
-                            if re.match(r'\d{1,2}/\d{1,2}/\d{2}', parts[i]):
-                                if date_service is None:
-                                    date_service = parts[i]
-                                elif date_post is None:
-                                    date_post = parts[i]
-                                    break
-                        
-                        med_base_units = 0.0
-                        other_units = 0.0
-                        chg_amt = 0.0
-                        
-                        if len(numeric_parts) >= 3:
-                            med_base_units = numeric_parts[0] if numeric_parts[0] > 0 else 0.0
-                            other_units = numeric_parts[1] if len(numeric_parts) > 1 else 0.0
-                            chg_amt = numeric_parts[2] if len(numeric_parts) > 2 else 0.0
-                        
-                        charge_transactions_data.append({
-                            'ticket_ref': ticket_ref,
-                            'patient_name': patient_name,
-                            'site_code': site_code,
-                            'serv_type': serv_type,
-                            'cpt_code': cpt_code,
-                            'insurance_type': insurance_type,
-                            'start_time': None,
-                            'stop_time': None,
-                            'date_of_service': date_service,
-                            'date_of_post': date_post,
-                            'time_min': 0,
-                            'anes_base_units': 0.0,
-                            'med_base_units': med_base_units,
-                            'other_units': other_units,
-                            'chg_amt': chg_amt,
-                        })
-                
-                except (IndexError, ValueError) as e:
-                    logger.debug(f"Could not parse line on page {page_num}: {line[:50]}... Error: {e}")
-                    continue
-
-        # Create DataFrames
-        charge_df = pd.DataFrame(charge_transactions_data)
-        ticket_df = pd.DataFrame(ticket_tracking_data)
-
-        # Clean and anonymize the data
-        if not charge_df.empty:
-            charge_df = self._anonymize_dataframe(charge_df)
-            logger.debug(f"Parsed {len(charge_df)} charge transactions from text on page {page_num}")
-
-        if not ticket_df.empty:
-            ticket_df = self._anonymize_dataframe(ticket_df)
-            logger.debug(f"Parsed {len(ticket_df)} ticket tracking records from text on page {page_num}")
-
-        return charge_df, ticket_df
+            # Check if line starts with 8 digits (ticket number)
+            if re.match(r'^\d{8}\s', line):
+                transaction = self._parse_charge_transaction_line(line)
+                if transaction and transaction.get('Phys Ticket Ref#'):
+                    transactions.append(transaction)
+        
+        if transactions:
+            df = pd.DataFrame(transactions)
+            logger.info(f"Extracted {len(df)} transactions from page {page_num} using flexible parsing")
+            return df, pd.DataFrame()
+        else:
+            return pd.DataFrame(), pd.DataFrame()
     
+    def _parse_charge_transaction_line(self, line: str) -> dict:
+        """
+        Parse a charge transaction line with comprehensive field extraction.
+        Captures all fields including Note and numeric values at the end.
+        """
+        
+        # Initialize empty result
+        result = {}
+        
+        try:
+            # Extract ticket ref (first 8 digits)
+            if len(line) >= 8 and line[:8].isdigit():
+                result['Phys Ticket Ref#'] = line[:8]
+            else:
+                return {}  # Not a valid data line
+            
+            # Extract Note field (single character at position 9, after a space)
+            # Only capture valid note characters: S, B, M, D, Z
+            if len(line) > 9 and line[9] in ['S', 'B', 'M', 'D', 'Z']:
+                result['Note'] = line[9]
+            else:
+                result['Note'] = ''
+            
+            # Find where Site/Service fields start (look for "UF An", "UF Me", or "UF Mo")
+            # Handle cases where UF might be concatenated with patient name
+            site_pattern = r'(UF)\s*(An|Me|Mo)\s+'
+            site_match = re.search(site_pattern, line[10:])  # Start after Note field
+            
+            # Also check for embedded patterns like "UroFlynAn" or "UroFlynMe"
+            if not site_match:
+                # Try to find patterns like "Flynn" or similar embedded text
+                embedded_pattern = r'(?:Uro)?(?:Flynn?|Flyn)(An|Me|Mo)\s+'
+                embedded_match = re.search(embedded_pattern, line[10:])
+                if embedded_match:
+                    # For embedded patterns, we'll assume UF as site code
+                    result['Site Code'] = 'UF'
+                    result['Serv Type'] = embedded_match.group(1)
+                    site_match = embedded_match
+            
+            if site_match:
+                # Extract patient name, which is between the note and the site code
+                name_start_index = 11 if result.get('Note') else 9
+                name_end_index = 10 + site_match.start()
+                patient_name = line[name_start_index:name_end_index].strip()
+                result['patient_name'] = self._scramble_name(patient_name)
+
+                if 'Site Code' not in result:
+                    result['Site Code'] = site_match.group(1)
+                if 'Serv Type' not in result:
+                    result['Serv Type'] = site_match.group(2) if len(site_match.groups()) >= 2 else site_match.group(1)
+                
+                # Everything after site/service
+                remaining = line[10 + site_match.end():].strip()
+                parts = remaining.split()
+                
+                idx = 0
+                
+                # CPT Code (5 digits)
+                if idx < len(parts) and re.match(r'^\d{5}$', parts[idx]):
+                    result['CPT Code'] = parts[idx]
+                    idx += 1
+                
+                # Pay Code (next non-time field)
+                if idx < len(parts) and not re.match(r'^\d{1,2}:\d{2}$', parts[idx]):
+                    result['Pay Code'] = parts[idx]
+                    idx += 1
+                
+                # Times (HH:MM format)
+                times_found = []
+                while idx < len(parts) and len(times_found) < 2:
+                    if re.match(r'^\d{1,2}:\d{2}$', parts[idx]):
+                        times_found.append(parts[idx])
+                        idx += 1
+                    else:
+                        break
+                
+                if len(times_found) >= 1:
+                    result['Start Time'] = times_found[0]
+                if len(times_found) >= 2:
+                    result['Stop Time'] = times_found[1]
+                
+                # OB Case Pos (might be present before dates)
+                if idx < len(parts) and not re.match(r'^\d{1,2}/\d{1,2}/\d{2}$', parts[idx]):
+                    # Check if it's a position indicator
+                    if parts[idx] in ['L', 'R', 'S', 'P'] or len(parts[idx]) == 1:
+                        result['OB Case Pos'] = parts[idx]
+                        idx += 1
+                
+                # Dates (M/D/YY format)
+                dates_found = []
+                while idx < len(parts) and len(dates_found) < 2:
+                    if re.match(r'^\d{1,2}/\d{1,2}/\d{2}$', parts[idx]):
+                        dates_found.append(parts[idx])
+                        idx += 1
+                    else:
+                        break
+                
+                if len(dates_found) >= 1:
+                    result['Date of Service'] = dates_found[0]
+                if len(dates_found) >= 2:
+                    result['Date of Post'] = dates_found[1]
+                
+                # Split % (might be present after dates)
+                if idx < len(parts):
+                    # Check if next value could be split percentage
+                    try:
+                        val = float(parts[idx].replace(',', ''))
+                        if 0 <= val <= 100:  # Likely a percentage
+                            result['Split %'] = parts[idx]
+                            idx += 1
+                    except ValueError:
+                        pass
+                
+                # Collect ALL remaining numeric values
+                numeric_values = []
+                text_values = []
+                while idx < len(parts):
+                    part = parts[idx].replace(',', '')
+                    try:
+                        numeric_values.append(float(part))
+                    except ValueError:
+                        text_values.append(part)
+                    idx += 1
+                
+                # Assign numeric values to remaining fields
+                # This is a bit fragile and depends on the order of fields in the PDF
+                # A more robust solution would use fixed-width parsing if possible
+                numeric_fields = [
+                    'Anes Time (Min)', 'Anes Base Units', 'Med Base Units', 'Other Units',
+                    'Chg Amt', 'Sub Pool %', 'Sb Pl Time (Min)', 'Anes Base', 'Med Base',
+                    'Grp Pool %', 'Gr Pl Time (Min)', 'Grp Anes Base', 'Grp Med Base'
+                ]
+                
+                for i, val in enumerate(numeric_values):
+                    if i < len(numeric_fields):
+                        result[numeric_fields[i]] = str(val)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error parsing charge transaction line: {str(e)}")
+            return {}
+
     def _anonymize_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Remove patient names and other sensitive information from DataFrame."""
         if df.empty:
             return df
         
         # List of column names that might contain patient information
-        sensitive_columns = [
-            'Patient Name', 'patient_name', 'Patient', 'patient',
-            'Name', 'name', 'PATIENT NAME', 'PATIENT_NAME'
-        ]
+        sensitive_cols = ['Patient Name']
         
-        # Remove sensitive columns
-        columns_to_drop = [col for col in df.columns if col in sensitive_columns]
-        if columns_to_drop:
-            df = df.drop(columns=columns_to_drop)
-            logger.info(f"Removed sensitive columns: {columns_to_drop}")
+        for col in sensitive_cols:
+            if col in df.columns:
+                # Scramble the names
+                df[col] = df[col].apply(self._scramble_name)
         
         return df
 
+    def _scramble_name(self, name: str) -> str:
+        """
+        Scrambles the middle part of a name for anonymization.
+        Keeps the first and last letters of each word.
+        """
+        if not name:
+            return ""
+        
+        words = name.split()
+        scrambled_words = []
+        for word in words:
+            if len(word) > 2:
+                middle = list(word[1:-1])
+                import random
+                random.shuffle(middle)
+                scrambled_word = word[0] + "".join(middle) + word[-1]
+                scrambled_words.append(scrambled_word)
+            else:
+                scrambled_words.append(word)
+        
+        return " ".join(scrambled_words)
+
 def test_extractor():
     """Test function to verify the extractor works."""
-    extractor = MedicalReportExtractor()
     
-    # Test with the sample file
-    test_file = "data/archive/20250613-614-Compensation Reports_unlocked.pdf"
+    # Create a dummy PDF for testing if needed, or use an existing one
+    # For now, we assume a test PDF exists at 'data/test_report.pdf'
     
     try:
-        summary, charges, tickets = extractor.extract_data_from_report(test_file)
+        extractor = MedicalReportExtractor()
+        summary, charges, tickets = extractor.extract_data_from_report('data/test_final.pdf')
         
         print("=== SUMMARY DATA ===")
-        for key, value in summary.items():
-            print(f"{key}: {value}")
+        print(summary)
         
-        print(f"\n=== CHARGE TRANSACTIONS ({len(charges)} records) ===")
-        if not charges.empty:
-            print(charges.head())
-            print(f"Columns: {list(charges.columns)}")
-        else:
-            print("No charge transaction data found")
+        print("\n=== CHARGE TRANSACTIONS ===")
+        print(charges.head())
         
-        print(f"\n=== TICKET TRACKING ({len(tickets)} records) ===")
-        if not tickets.empty:
-            print(tickets.head())
-            print(f"Columns: {list(tickets.columns)}")
-        else:
-            print("No ticket tracking data found")
-            
+        print("\n=== TICKET TRACKING ===")
+        print(tickets.head())
+        
     except Exception as e:
-        print(f"Error testing extractor: {e}")
+        print(f"An error occurred during testing: {str(e)}")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     test_extractor()

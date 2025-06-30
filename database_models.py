@@ -47,22 +47,60 @@ class AnesthesiaCase(Base):
     # Relationship
     summary = relationship("MonthlySummary", back_populates="anesthesia_cases")
 
+class MasterCase(Base):
+    """A master case that groups multiple charge transactions."""
+    __tablename__ = 'master_cases'
+
+    id = Column(Integer, primary_key=True)
+    case_key = Column(String, unique=True, nullable=False)
+    patient_name = Column(String, nullable=False)
+    date_of_service = Column(Date, nullable=False)
+    earliest_start_time = Column(String)
+    latest_stop_time = Column(String)
+    primary_ticket_ref = Column(String)
+
+    charge_transactions = relationship("ChargeTransaction", back_populates="master_case")
+
 class ChargeTransaction(Base):
     """Table to store charge transaction data from ChargeTransaction Report."""
     __tablename__ = 'charge_transactions'
     
     id = Column(Integer, primary_key=True)
     summary_id = Column(Integer, ForeignKey('monthly_summary.id'), nullable=False)
-    case_id = Column(String, nullable=True)  # Links to anesthesia_cases
-    cpt_code = Column(String, nullable=True)  # Procedure Code
-    billed_amount = Column(REAL, nullable=True)
-    paid_amount = Column(REAL, nullable=True)
-    insurance_carrier = Column(String, nullable=True)
-    service_date = Column(Date, nullable=True)
+    master_case_id = Column(Integer, ForeignKey('master_cases.id'))
+    phys_ticket_ref = Column(String, nullable=True)
+    patient_name = Column(String, nullable=True)
+    note = Column(String, nullable=True)
+    original_chg_mo = Column(String, nullable=True)
+    site_code = Column(String, nullable=True)
+    serv_type = Column(String, nullable=True)
+    cpt_code = Column(String, nullable=True)
+    pay_code = Column(String, nullable=True)
+    start_time = Column(String, nullable=True)
+    stop_time = Column(String, nullable=True)
+    ob_case_pos = Column(String, nullable=True)
+    date_of_service = Column(String, nullable=True)
+    date_of_post = Column(String, nullable=True)
+    split_percent = Column(String, nullable=True)
+    anes_time_min = Column(String, nullable=True)
+    anes_base_units = Column(String, nullable=True)
+    med_base_units = Column(String, nullable=True)
+    other_units = Column(String, nullable=True)
+    chg_amt = Column(String, nullable=True)
+    sub_pool_percent = Column(String, nullable=True)
+    sb_pl_time_min = Column(String, nullable=True)
+    anes_base = Column(String, nullable=True)
+    med_base = Column(String, nullable=True)
+    grp_pool_percent = Column(String, nullable=True)
+    gr_pl_time_min = Column(String, nullable=True)
+    grp_anes_base = Column(String, nullable=True)
+    grp_med_base = Column(String, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    # Relationship
+    # Relationships
     summary = relationship("MonthlySummary", back_populates="charge_transactions")
+    master_case = relationship("MasterCase", back_populates="charge_transactions")
 
 def create_database():
     """Create all tables in the database."""

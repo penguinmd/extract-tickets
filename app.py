@@ -3,9 +3,11 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from werkzeug.utils import secure_filename
 from pathlib import Path
 import traceback
+import pandas as pd
 
 from process_reports import ReportProcessor
 from data_analyzer import CompensationAnalyzer
+from database_models import get_session, MonthlySummary, ChargeTransaction, AnesthesiaCase
 
 # Configuration
 UPLOAD_FOLDER = 'data'
@@ -52,21 +54,39 @@ def compensation():
         flash(f"Error loading compensation data: {str(e)}", 'danger')
         return render_template('compensation.html', summary_data=[])
 
+@app.route('/cases')
+def cases():
+    """Master cases page."""
+    try:
+        analyzer = CompensationAnalyzer()
+        cases_df = analyzer.get_master_cases()
+        return render_template('cases.html', cases_data=cases_df.to_dict(orient='records'))
+    except Exception as e:
+        app.logger.error(f"Cases page error: {str(e)}\n{traceback.format_exc()}")
+        flash(f"Error loading master cases: {str(e)}", 'danger')
+        return render_template('cases.html', cases_data=[])
+
 @app.route('/tickets')
 def tickets():
-    """Ticket/transaction data page."""
+    """Ticket/transaction data page with sorting."""
     try:
         analyzer = CompensationAnalyzer()
         
-        # Get charge transactions
-        transactions_df = analyzer.get_charge_transactions()
-        
+        # Get sorting parameters from request
+        sort_by = request.args.get('sort_by', 'case_id')
+        sort_order = request.args.get('sort_order', 'asc')
+
+        # Fetch and sort data
+        transactions_df = analyzer.get_charge_transactions(sort_by=sort_by, sort_order=sort_order)
+
         return render_template('tickets.html',
-                             transactions_data=transactions_df.to_dict(orient='records') if not transactions_df.empty else [])
+                             transactions_data=transactions_df.to_dict(orient='records') if not transactions_df.empty else [],
+                             sort_by=sort_by,
+                             sort_order=sort_order)
     except Exception as e:
         app.logger.error(f"Tickets page error: {str(e)}\n{traceback.format_exc()}")
         flash(f"Error loading ticket data: {str(e)}", 'danger')
-        return render_template('tickets.html', transactions_data=[])
+        return render_template('tickets.html', transactions_data=[], sort_by='case_id', sort_order='asc')
 
 @app.route('/analysis')
 def analysis():
@@ -126,10 +146,64 @@ def upload_file():
         flash('Invalid file type. Please upload a PDF.', 'danger')
         return redirect(url_for('index'))
 
+@app.route('/delete_report/<int:summary_id>', methods=['POST'])
+def delete_report(summary_id):
+    """Delete a report and all its associated data."""
+    session = get_session()
+    try:
+        # Find the summary record
+        summary = session.query(MonthlySummary).filter_by(id=summary_id).first()
+        if not summary:
+            flash('Report not found.', 'danger')
+            return redirect(url_for('compensation'))
+
+        # Delete associated records
+        session.query(ChargeTransaction).filter_by(summary_id=summary_id).delete()
+        session.query(AnesthesiaCase).filter_by(summary_id=summary_id).delete()
+        
+        # Delete the summary record
+        session.delete(summary)
+        
+        session.commit()
+        flash(f'Report "{summary.source_file}" and all its data have been deleted.', 'success')
+    except Exception as e:
+        session.rollback()
+        app.logger.error(f"Error deleting report: {str(e)}\n{traceback.format_exc()}")
+        flash(f'Error deleting report: {str(e)}', 'danger')
+    finally:
+        session.close()
+        
+    return redirect(url_for('compensation'))
+
+@app.route('/health')
+def health_check():
+    """A simple health check endpoint."""
+    return jsonify({"status": "ok"}), 200
+
+@app.route('/delete', methods=['GET', 'POST'])
+def delete_all_data():
+    """Delete all data from the database."""
+    if request.method == 'POST':
+        session = get_session()
+        try:
+            session.query(ChargeTransaction).delete()
+            session.query(AnesthesiaCase).delete()
+            session.query(MonthlySummary).delete()
+            session.commit()
+            flash('All data has been deleted.', 'success')
+        except Exception as e:
+            session.rollback()
+            app.logger.error(f"Error deleting all data: {str(e)}\n{traceback.format_exc()}")
+            flash(f'Error deleting all data: {str(e)}', 'danger')
+        finally:
+            session.close()
+        return redirect(url_for('delete_all_data'))
+    return render_template('delete.html')
+
 if __name__ == '__main__':
     # Ensure directories exist
     Path('static').mkdir(exist_ok=True)
     Path('static/reports').mkdir(exist_ok=True)
     Path('data').mkdir(exist_ok=True)
     
-    app.run(debug=True, port=5003)
+    app.run(debug=True, port=8888)

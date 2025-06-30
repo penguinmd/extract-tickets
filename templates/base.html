@@ -71,8 +71,18 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('cases') }}">
+                            <i class="fas fa-folder-open"></i> Master Cases
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('analysis') }}">
                             <i class="fas fa-chart-bar"></i> Analysis
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('delete_all_data') }}">
+                            <i class="fas fa-trash-alt"></i> Delete Data
                         </a>
                     </li>
                 </ul>
