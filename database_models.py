@@ -48,16 +48,35 @@ class AnesthesiaCase(Base):
     summary = relationship("MonthlySummary", back_populates="anesthesia_cases")
 
 class MasterCase(Base):
-    """A master case that groups multiple charge transactions."""
+    """A master case that groups multiple charge transactions by patient ticket number."""
     __tablename__ = 'master_cases'
 
     id = Column(Integer, primary_key=True)
-    case_key = Column(String, unique=True, nullable=False)
-    patient_name = Column(String, nullable=False)
-    date_of_service = Column(Date, nullable=False)
-    earliest_start_time = Column(String)
-    latest_stop_time = Column(String)
-    primary_ticket_ref = Column(String)
+    # Primary key fields (patient is identified by ticket number within each upload)
+    patient_ticket_number = Column(String, nullable=False)  # Ticket number that identifies the patient
+    date_of_service = Column(Date, nullable=True)  # Can be null if no date available
+    cpt_code = Column(String, nullable=True)  # Can be null, or comma-separated list of CPT codes
+    initial_start_time = Column(String, nullable=True)  # Earliest start time for this case
+    
+    # Summary fields
+    total_anes_time = Column(REAL, default=0.0)  # Sum of all anesthesia times
+    total_anes_base_units = Column(REAL, default=0.0)  # Sum of all anesthesia base units
+    total_med_base_units = Column(REAL, default=0.0)  # Sum of all medical base units
+    total_other_units = Column(REAL, default=0.0)  # Sum of all other units
+    
+    # Ticket number tracking
+    initial_ticket_number = Column(String, nullable=False)  # First ticket number assigned
+    final_ticket_number = Column(String, nullable=False)  # Most recent ticket number (defaults to initial)
+    
+    # Additional metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Create a unique constraint on patient_ticket_number since each ticket represents one patient case
+    __table_args__ = (
+        # Unique constraint on patient ticket number - each ticket represents one patient case
+        # This allows multiple CPT codes and time periods within the same case
+    )
 
     charge_transactions = relationship("ChargeTransaction", back_populates="master_case")
 
@@ -69,7 +88,6 @@ class ChargeTransaction(Base):
     summary_id = Column(Integer, ForeignKey('monthly_summary.id'), nullable=False)
     master_case_id = Column(Integer, ForeignKey('master_cases.id'))
     phys_ticket_ref = Column(String, nullable=True)
-    patient_name = Column(String, nullable=True)
     note = Column(String, nullable=True)
     original_chg_mo = Column(String, nullable=True)
     site_code = Column(String, nullable=True)

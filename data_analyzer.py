@@ -170,6 +170,7 @@ class CompensationAnalyzer:
         numeric_cols = ['claim_count', 'avg_billed', 'avg_paid', 'total_billed', 'total_paid', 'overall_payment_rate']
         df[numeric_cols] = df[numeric_cols].fillna(0)
         return df
+
     def get_charge_transactions(self, sort_by='phys_ticket_ref', sort_order='asc') -> pd.DataFrame:
         """
         Fetch all charge transactions with sorting.
@@ -207,14 +208,43 @@ class CompensationAnalyzer:
             logger.error(f"Error getting charge transactions: {str(e)}")
             return pd.DataFrame()
 
-    def get_master_cases(self) -> pd.DataFrame:
+    def get_master_cases(self, sort_by='date_of_service', sort_order='desc') -> pd.DataFrame:
         """
-        Retrieves all master cases from the database.
+        Retrieves all master cases from the database with sorting.
+        
+        Args:
+            sort_by (str): Field to sort by (default: date_of_service)
+            sort_order (str): Sort order ('asc' or 'desc', default: 'desc')
+            
+        Returns:
+            DataFrame: Master cases data
         """
         try:
             from database_models import MasterCase
+            
+            # Build query with sorting
             query = self.session.query(MasterCase)
-            return pd.read_sql(query.statement, self.session.bind)
+            
+            # Add sorting
+            if hasattr(MasterCase, sort_by):
+                sort_column = getattr(MasterCase, sort_by)
+                if sort_order.lower() == 'desc':
+                    query = query.order_by(sort_column.desc())
+                else:
+                    query = query.order_by(sort_column.asc())
+            else:
+                # Default sorting by date descending
+                query = query.order_by(MasterCase.date_of_service.desc())
+            
+            # Convert to DataFrame
+            df = pd.read_sql(query.statement, self.session.bind)
+            
+            # Convert date columns
+            if 'date_of_service' in df.columns:
+                df['date_of_service'] = pd.to_datetime(df['date_of_service'])
+            
+            return df
+            
         except Exception as e:
             logger.error(f"Error getting master cases: {str(e)}")
             return pd.DataFrame()

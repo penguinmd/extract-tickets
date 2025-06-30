@@ -59,12 +59,22 @@ def cases():
     """Master cases page."""
     try:
         analyzer = CompensationAnalyzer()
-        cases_df = analyzer.get_master_cases()
-        return render_template('cases.html', cases_data=cases_df.to_dict(orient='records'))
+        
+        # Get sorting parameters from request
+        sort_by = request.args.get('sort_by', 'date_of_service')
+        sort_order = request.args.get('sort_order', 'desc')
+
+        # Fetch and sort data
+        cases_df = analyzer.get_master_cases(sort_by=sort_by, sort_order=sort_order)
+        
+        return render_template('cases.html', 
+                             cases_data=cases_df.to_dict(orient='records') if not cases_df.empty else [],
+                             sort_by=sort_by,
+                             sort_order=sort_order)
     except Exception as e:
         app.logger.error(f"Cases page error: {str(e)}\n{traceback.format_exc()}")
         flash(f"Error loading master cases: {str(e)}", 'danger')
-        return render_template('cases.html', cases_data=[])
+        return render_template('cases.html', cases_data=[], sort_by='date_of_service', sort_order='desc')
 
 @app.route('/tickets')
 def tickets():
@@ -73,7 +83,7 @@ def tickets():
         analyzer = CompensationAnalyzer()
         
         # Get sorting parameters from request
-        sort_by = request.args.get('sort_by', 'case_id')
+        sort_by = request.args.get('sort_by', 'phys_ticket_ref')
         sort_order = request.args.get('sort_order', 'asc')
 
         # Fetch and sort data
@@ -86,7 +96,7 @@ def tickets():
     except Exception as e:
         app.logger.error(f"Tickets page error: {str(e)}\n{traceback.format_exc()}")
         flash(f"Error loading ticket data: {str(e)}", 'danger')
-        return render_template('tickets.html', transactions_data=[], sort_by='case_id', sort_order='asc')
+        return render_template('tickets.html', transactions_data=[], sort_by='phys_ticket_ref', sort_order='asc')
 
 @app.route('/analysis')
 def analysis():

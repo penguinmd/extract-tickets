@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Dict, Any
 import logging
 from database_models import MonthlySummary, AnesthesiaCase, ChargeTransaction, get_session
+from case_grouper import CaseGrouper
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -47,7 +48,17 @@ class DataLoader:
                 if not success:
                     logger.warning("Failed to insert some charge transactions")
             
-            # 3. Insert ticket tracking data (anesthesia cases)
+            # 3. Group transactions into master cases
+            if not charge_transactions.empty:
+                try:
+                    grouper = CaseGrouper(self.session)
+                    grouper.group_transactions_into_cases()
+                    stats = grouper.get_case_statistics()
+                    logger.info(f"Case grouping completed: {stats['total_cases']} cases created from {stats['linked_transactions']} transactions")
+                except Exception as e:
+                    logger.warning(f"Failed to group transactions into cases: {str(e)}")
+            
+            # 4. Insert ticket tracking data (anesthesia cases)
             if not ticket_tracking.empty:
                 success = self._insert_anesthesia_cases(ticket_tracking, summary_id)
                 if not success:
@@ -119,7 +130,6 @@ class DataLoader:
                     record_data = {
                         'summary_id': summary_id,
                         'phys_ticket_ref': str(row.get('Phys Ticket Ref#', '')).strip(),
-                        'patient_name': str(row.get('patient_name', '')).strip(),
                         'note': str(row.get('Note', '')).strip(),
                         'original_chg_mo': str(row.get('Original Chg Mo', '')).strip(),
                         'site_code': str(row.get('Site Code', '')).strip(),
