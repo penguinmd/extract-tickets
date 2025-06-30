@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}ASMG Rules Management - Compensation Analysis{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-calculator"></i> ASMG Rules Management
+        </h1>
+        <p class="text-muted">Manage temporal rules for ASMG unit calculations. Rules are applied based on case date of service.</p>
+    </div>
+</div>
+
+<!-- Add New Rule Form -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-plus"></i> Add/Update ASMG Rule
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_asmg_rule') }}">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="effective_date">Effective Date *</label>
+                                <input type="date" class="form-control" id="effective_date" name="effective_date" required>
+                                <small class="form-text text-muted">Date when this rule becomes effective</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="anes_units_multiplier">Anes Units Multiplier *</label>
+                                <input type="number" step="0.1" class="form-control" id="anes_units_multiplier" name="anes_units_multiplier" value="0.5" required>
+                                <small class="form-text text-muted">Multiplier for anesthesia base units</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="anes_time_divisor">Anes Time Divisor *</label>
+                                <input type="number" step="0.1" class="form-control" id="anes_time_divisor" name="anes_time_divisor" value="10.0" required>
+                                <small class="form-text text-muted">Divisor for anesthesia time</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="med_units_multiplier">Med Units Multiplier *</label>
+                                <input type="number" step="0.1" class="form-control" id="med_units_multiplier" name="med_units_multiplier" value="0.6" required>
+                                <small class="form-text text-muted">Multiplier for medical base units</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-8">
+                            <div class="form-group">
+                                <label for="description">Description</label>
+                                <input type="text" class="form-control" id="description" name="description" placeholder="Optional description of this rule">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <button type="submit" class="btn btn-primary btn-block">
+                                    <i class="fas fa-save"></i> Save Rule
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ASMG Formula Display -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle"></i> ASMG Units Formula
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2"><strong>ASMG Units = (Anes Units Multiplier × Total Anes Units) + (Total Anes Time ÷ Anes Time Divisor) + (Med Units Multiplier × Total Med Units)</strong></p>
+                <p class="text-muted mb-0">The applicable rule is determined by the case's date of service. The most recent rule with an effective date ≤ the case date is used.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Existing Rules Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table"></i> Existing ASMG Rules
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if rules %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Effective Date</th>
+                                <th>Anes Units Multiplier</th>
+                                <th>Anes Time Divisor</th>
+                                <th>Med Units Multiplier</th>
+                                <th>Description</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rule in rules %}
+                            <tr>
+                                <td>{{ rule.effective_date.strftime('%m/%d/%Y') }}</td>
+                                <td>{{ "%.1f"|format(rule.anes_units_multiplier) }}</td>
+                                <td>{{ "%.1f"|format(rule.anes_time_divisor) }}</td>
+                                <td>{{ "%.1f"|format(rule.med_units_multiplier) }}</td>
+                                <td>{{ rule.description or 'No description' }}</td>
+                                <td>{{ rule.created_at.strftime('%m/%d/%Y %H:%M') }}</td>
+                                <td>
+                                    <form method="POST" action="{{ url_for('delete_asmg_rule', rule_id=rule.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this rule?')">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h4>No ASMG Rules Found</h4>
+                    <p class="text-muted">Add your first ASMG rule using the form above.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set default date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('effective_date').value = today;
+    
+    // Add form validation
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        const anesUnitsMultiplier = parseFloat(document.getElementById('anes_units_multiplier').value);
+        const anesTimeDivisor = parseFloat(document.getElementById('anes_time_divisor').value);
+        const medUnitsMultiplier = parseFloat(document.getElementById('med_units_multiplier').value);
+        
+        if (anesTimeDivisor === 0) {
+            e.preventDefault();
+            alert('Anes Time Divisor cannot be zero!');
+            return false;
+        }
+        
+        if (anesUnitsMultiplier < 0 || medUnitsMultiplier < 0) {
+            e.preventDefault();
+            alert('Multipliers cannot be negative!');
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %} 

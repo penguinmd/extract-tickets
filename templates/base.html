@@ -41,6 +41,45 @@
         .chart-container {
             margin-bottom: 2rem;
         }
+        
+        /* Sortable table headers */
+        .table th a {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: #495057;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        
+        .table th a:hover {
+            color: #007bff;
+            text-decoration: none;
+        }
+        
+        .table th a i {
+            margin-left: 5px;
+            font-size: 0.8em;
+        }
+        
+        .table th a:hover i {
+            color: #007bff;
+        }
+        
+        /* Table responsiveness improvements */
+        .table-responsive {
+            border-radius: 0.375rem;
+        }
+        
+        .table th, .table td {
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+        
+        /* Hover effect for table rows */
+        .table-hover tbody tr:hover {
+            background-color: rgba(0, 123, 255, 0.05);
+        }
     </style>
 </head>
 <body>
@@ -73,6 +112,11 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('cases') }}">
                             <i class="fas fa-folder-open"></i> Master Cases
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('asmg_rules') }}">
+                            <i class="fas fa-calculator"></i> ASMG Rules
                         </a>
                     </li>
                     <li class="nav-item">

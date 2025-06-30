@@ -36,6 +36,16 @@
                                     </a>
                                 </th>
                                 <th>
+                                    <a href="{{ url_for('cases', sort_by='asmg_units', sort_order='desc' if sort_by == 'asmg_units' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        ASMG Units
+                                        {% if sort_by == 'asmg_units' %}
+                                            <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
                                     <a href="{{ url_for('cases', sort_by='date_of_service', sort_order='desc' if sort_by == 'date_of_service' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
                                         Date of Service
                                         {% if sort_by == 'date_of_service' %}
@@ -46,9 +56,9 @@
                                     </a>
                                 </th>
                                 <th>
-                                    <a href="{{ url_for('cases', sort_by='cpt_code', sort_order='desc' if sort_by == 'cpt_code' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
-                                        CPT Code
-                                        {% if sort_by == 'cpt_code' %}
+                                    <a href="{{ url_for('cases', sort_by='initial_start_time', sort_order='desc' if sort_by == 'initial_start_time' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        Start Time
+                                        {% if sort_by == 'initial_start_time' %}
                                             <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
                                         {% else %}
                                             <i class="fas fa-sort text-muted"></i>
@@ -56,9 +66,9 @@
                                     </a>
                                 </th>
                                 <th>
-                                    <a href="{{ url_for('cases', sort_by='initial_start_time', sort_order='desc' if sort_by == 'initial_start_time' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
-                                        Start Time
-                                        {% if sort_by == 'initial_start_time' %}
+                                    <a href="{{ url_for('cases', sort_by='cpt_code', sort_order='desc' if sort_by == 'cpt_code' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        CPT Code
+                                        {% if sort_by == 'cpt_code' %}
                                             <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
                                         {% else %}
                                             <i class="fas fa-sort text-muted"></i>
@@ -114,7 +124,9 @@
                             {% for case in cases_data %}
                             <tr>
                                 <td>{{ case.patient_ticket_number }}</td>
+                                <td>{{ "%.2f"|format(case.asmg_units) if case.asmg_units else '0.00' }}</td>
                                 <td>{{ case.date_of_service.strftime('%m/%d/%Y') if case.date_of_service else 'N/A' }}</td>
+                                <td>{{ case.initial_start_time if case.initial_start_time else 'N/A' }}</td>
                                 <td>
                                     {% if case.cpt_code %}
                                         {% for cpt in case.cpt_code.split(', ') %}
@@ -124,7 +136,6 @@
                                         N/A
                                     {% endif %}
                                 </td>
-                                <td>{{ case.initial_start_time if case.initial_start_time else 'N/A' }}</td>
                                 <td>{{ "%.1f"|format(case.total_anes_time) if case.total_anes_time else '0.0' }}</td>
                                 <td>{{ "%.1f"|format(case.total_anes_base_units) if case.total_anes_base_units else '0.0' }}</td>
                                 <td>{{ "%.1f"|format(case.total_med_base_units) if case.total_med_base_units else '0.0' }}</td>

@@ -12,6 +12,7 @@ from sqlalchemy import text
 from datetime import datetime, timedelta
 import logging
 from database_models import engine, get_session
+from asmg_calculator import ASMGCalculator
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -217,7 +218,7 @@ class CompensationAnalyzer:
             sort_order (str): Sort order ('asc' or 'desc', default: 'desc')
             
         Returns:
-            DataFrame: Master cases data
+            DataFrame: Master cases data with stored ASMG units
         """
         try:
             from database_models import MasterCase
@@ -225,7 +226,7 @@ class CompensationAnalyzer:
             # Build query with sorting
             query = self.session.query(MasterCase)
             
-            # Add sorting
+            # Add sorting - now asmg_units is a database column so it can be sorted at DB level
             if hasattr(MasterCase, sort_by):
                 sort_column = getattr(MasterCase, sort_by)
                 if sort_order.lower() == 'desc':

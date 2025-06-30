@@ -59,6 +59,10 @@ class CaseGrouper:
         Creates MasterCase records and links the charge transactions.
         Each case represents one patient (ticket number) and can have multiple CPT codes and time periods.
         """
+        # Import ASMGCalculator for calculating ASMG units
+        from asmg_calculator import ASMGCalculator
+        calculator = ASMGCalculator(self.session)
+        
         for case_key, transactions in case_groups.items():
             if not transactions:
                 continue
@@ -141,6 +145,26 @@ class CaseGrouper:
             initial_ticket = min(ticket_numbers) if ticket_numbers else patient_ticket
             final_ticket = max(ticket_numbers) if ticket_numbers else patient_ticket
             
+            # Calculate ASMG units
+            asmg_units = 0.0
+            if date_of_service:
+                try:
+                    # Convert string date to date object if needed
+                    if isinstance(date_of_service, str):
+                        case_date = datetime.strptime(date_of_service, '%m/%d/%y').date()
+                    else:
+                        case_date = date_of_service
+                    
+                    asmg_units = calculator.calculate_asmg_units(
+                        case_date=case_date,
+                        total_anes_units=total_anes_base_units,
+                        total_anes_time=total_anes_time,
+                        total_med_units=total_med_base_units
+                    )
+                except Exception as e:
+                    logger.warning(f"Error calculating ASMG units for case {patient_ticket}: {str(e)}")
+                    asmg_units = 0.0
+            
             # Check if case already exists
             existing_case = self.session.query(MasterCase).filter_by(
                 patient_ticket_number=patient_ticket
@@ -155,6 +179,7 @@ class CaseGrouper:
                 existing_case.total_anes_base_units = total_anes_base_units
                 existing_case.total_med_base_units = total_med_base_units
                 existing_case.total_other_units = total_other_units
+                existing_case.asmg_units = asmg_units
                 existing_case.final_ticket_number = final_ticket
                 existing_case.updated_at = datetime.utcnow()
                 master_case = existing_case
@@ -169,6 +194,7 @@ class CaseGrouper:
                     total_anes_base_units=total_anes_base_units,
                     total_med_base_units=total_med_base_units,
                     total_other_units=total_other_units,
+                    asmg_units=asmg_units,
                     initial_ticket_number=initial_ticket,
                     final_ticket_number=final_ticket
                 )

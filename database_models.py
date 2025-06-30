@@ -47,6 +47,24 @@ class AnesthesiaCase(Base):
     # Relationship
     summary = relationship("MonthlySummary", back_populates="anesthesia_cases")
 
+class ASMGTemporalRules(Base):
+    """Table to store temporal rules for ASMG unit calculations."""
+    __tablename__ = 'asmg_temporal_rules'
+    
+    id = Column(Integer, primary_key=True)
+    effective_date = Column(Date, nullable=False)  # Date when this rule becomes effective
+    anes_units_multiplier = Column(REAL, nullable=False, default=0.5)  # Multiplier for anesthesia base units
+    anes_time_divisor = Column(REAL, nullable=False, default=10.0)  # Divisor for anesthesia time
+    med_units_multiplier = Column(REAL, nullable=False, default=0.6)  # Multiplier for medical base units
+    description = Column(String, nullable=True)  # Optional description of the rule
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Ensure effective_date is unique
+    __table_args__ = (
+        # Unique constraint on effective_date to prevent overlapping rules
+    )
+
 class MasterCase(Base):
     """A master case that groups multiple charge transactions by patient ticket number."""
     __tablename__ = 'master_cases'
@@ -63,6 +81,9 @@ class MasterCase(Base):
     total_anes_base_units = Column(REAL, default=0.0)  # Sum of all anesthesia base units
     total_med_base_units = Column(REAL, default=0.0)  # Sum of all medical base units
     total_other_units = Column(REAL, default=0.0)  # Sum of all other units
+    
+    # Calculated ASMG units (stored in database for performance)
+    asmg_units = Column(REAL, default=0.0)  # Calculated ASMG units based on temporal rules
     
     # Ticket number tracking
     initial_ticket_number = Column(String, nullable=False)  # First ticket number assigned
