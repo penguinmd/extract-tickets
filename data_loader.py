@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 from typing import Dict, Any
 import logging
-from database_models import MonthlySummary, AnesthesiaCase, ChargeTransaction, get_session
+from database_models import MonthlySummary, AnesthesiaCase, ChargeTransaction, MasterCase, get_session
 from case_grouper import CaseGrouper
 
 # Set up logging
@@ -92,6 +92,9 @@ class DataLoader:
                 self.session.query(ChargeTransaction).filter_by(summary_id=existing.id).delete(synchronize_session=False)
                 self.session.query(AnesthesiaCase).filter_by(summary_id=existing.id).delete(synchronize_session=False)
                 
+                # Clear all master cases since they're derived from transactions
+                self.session.query(MasterCase).delete(synchronize_session=False)
+                
                 # Now delete the summary record
                 self.session.delete(existing)
                 self.session.flush()  # Ensure deletion is processed before inserting new data
@@ -124,37 +127,43 @@ class DataLoader:
             for _, row in df.iterrows():
                 try:
                     case_id = str(row.get('Phys Ticket Ref#', '')).strip()
-                    if not case_id:
+                    if not case_id or case_id.lower() in ['nan', 'none', '']:
+                        logger.warning(f"Skipping transaction with invalid ticket reference: {case_id}")
                         continue
+
+                    # Clean and validate data fields
+                    def clean_field(value):
+                        cleaned = str(value).strip() if value is not None else ''
+                        return cleaned if cleaned.lower() not in ['nan', 'none', ''] else ''
 
                     record_data = {
                         'summary_id': summary_id,
-                        'phys_ticket_ref': str(row.get('Phys Ticket Ref#', '')).strip(),
-                        'note': str(row.get('Note', '')).strip(),
-                        'original_chg_mo': str(row.get('Original Chg Mo', '')).strip(),
-                        'site_code': str(row.get('Site Code', '')).strip(),
-                        'serv_type': str(row.get('Serv Type', '')).strip(),
-                        'cpt_code': str(row.get('CPT Code', '')).strip(),
-                        'pay_code': str(row.get('Pay Code', '')).strip(),
-                        'start_time': str(row.get('Start Time', '')).strip(),
-                        'stop_time': str(row.get('Stop Time', '')).strip(),
-                        'ob_case_pos': str(row.get('OB Case Pos', '')).strip(),
-                        'date_of_service': str(row.get('Date of Service', '')).strip(),
-                        'date_of_post': str(row.get('Date of Post', '')).strip(),
-                        'split_percent': str(row.get('Split %', '')).strip(),
-                        'anes_time_min': str(row.get('Anes Time (Min)', '')).strip(),
-                        'anes_base_units': str(row.get('Anes Base Units', '')).strip(),
-                        'med_base_units': str(row.get('Med Base Units', '')).strip(),
-                        'other_units': str(row.get('Other Units', '')).strip(),
-                        'chg_amt': str(row.get('Chg Amt', '')).strip(),
-                        'sub_pool_percent': str(row.get('Sub Pool %', '')).strip(),
-                        'sb_pl_time_min': str(row.get('Sb Pl Time (Min)', '')).strip(),
-                        'anes_base': str(row.get('Anes Base', '')).strip(),
-                        'med_base': str(row.get('Med Base', '')).strip(),
-                        'grp_pool_percent': str(row.get('Grp Pool %', '')).strip(),
-                        'gr_pl_time_min': str(row.get('Gr Pl Time (Min)', '')).strip(),
-                        'grp_anes_base': str(row.get('Anes Base', '')).strip(),
-                        'grp_med_base': str(row.get('Med Base', '')).strip(),
+                        'phys_ticket_ref': clean_field(row.get('Phys Ticket Ref#', '')),
+                        'note': clean_field(row.get('Note', '')),
+                        'original_chg_mo': clean_field(row.get('Original Chg Mo', '')),
+                        'site_code': clean_field(row.get('Site Code', '')),
+                        'serv_type': clean_field(row.get('Serv Type', '')),
+                        'cpt_code': clean_field(row.get('CPT Code', '')),
+                        'pay_code': clean_field(row.get('Pay Code', '')),
+                        'start_time': clean_field(row.get('Start Time', '')),
+                        'stop_time': clean_field(row.get('Stop Time', '')),
+                        'ob_case_pos': clean_field(row.get('OB Case Pos', '')),
+                        'date_of_service': clean_field(row.get('Date of Service', '')),
+                        'date_of_post': clean_field(row.get('Date of Post', '')),
+                        'split_percent': clean_field(row.get('Split %', '')),
+                        'anes_time_min': clean_field(row.get('Anes Time (Min)', '')),
+                        'anes_base_units': clean_field(row.get('Anes Base Units', '')),
+                        'med_base_units': clean_field(row.get('Med Base Units', '')),
+                        'other_units': clean_field(row.get('Other Units', '')),
+                        'chg_amt': clean_field(row.get('Chg Amt', '')),
+                        'sub_pool_percent': clean_field(row.get('Sub Pool %', '')),
+                        'sb_pl_time_min': clean_field(row.get('Sb Pl Time (Min)', '')),
+                        'anes_base': clean_field(row.get('Anes Base', '')),
+                        'med_base': clean_field(row.get('Med Base', '')),
+                        'grp_pool_percent': clean_field(row.get('Grp Pool %', '')),
+                        'gr_pl_time_min': clean_field(row.get('Gr Pl Time (Min)', '')),
+                        'grp_anes_base': clean_field(row.get('Anes Base', '')),
+                        'grp_med_base': clean_field(row.get('Med Base', '')),
                     }
 
                     # Use a composite key to find the existing transaction

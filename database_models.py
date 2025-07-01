@@ -61,9 +61,9 @@ class ASMGTemporalRules(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Ensure effective_date is unique
-    __table_args__ = (
-        # Unique constraint on effective_date to prevent overlapping rules
-    )
+    # __table_args__ = (
+    #     # Unique constraint on effective_date to prevent overlapping rules
+    # )
 
 class MasterCase(Base):
     """A master case that groups multiple charge transactions by patient ticket number."""
@@ -94,10 +94,10 @@ class MasterCase(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Create a unique constraint on patient_ticket_number since each ticket represents one patient case
-    __table_args__ = (
-        # Unique constraint on patient ticket number - each ticket represents one patient case
-        # This allows multiple CPT codes and time periods within the same case
-    )
+    # __table_args__ = (
+    #     # Unique constraint on patient ticket number - each ticket represents one patient case
+    #     # This allows multiple CPT codes and time periods within the same case
+    # )
 
     charge_transactions = relationship("ChargeTransaction", back_populates="master_case")
 

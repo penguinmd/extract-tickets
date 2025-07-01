@@ -1,6 +1,6 @@
 Flask
 pandas
-sqlalchemy
-pdfplumber
 matplotlib
 seaborn
+SQLAlchemy
+Werkzeug

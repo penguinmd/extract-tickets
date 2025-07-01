@@ -233,9 +233,9 @@ class MedicalReportExtractor:
         charge_transactions = pd.concat(charge_transactions_dfs, ignore_index=True) if charge_transactions_dfs else pd.DataFrame()
         ticket_tracking = pd.concat(ticket_tracking_dfs, ignore_index=True) if ticket_tracking_dfs else pd.DataFrame()
 
-        # Anonymize data by removing patient information
-        charge_transactions = self._anonymize_dataframe(charge_transactions)
-        ticket_tracking = self._anonymize_dataframe(ticket_tracking)
+        # Note: Anonymization removed - patient names are now preserved
+        # charge_transactions = self._anonymize_dataframe(charge_transactions)
+        # ticket_tracking = self._anonymize_dataframe(ticket_tracking)
 
         logger.info(f"Extracted {len(charge_transactions)} charge transactions and {len(ticket_tracking)} ticket tracking records")
         
@@ -432,7 +432,8 @@ class MedicalReportExtractor:
                 name_start_index = 11 if result.get('Note') else 9
                 name_end_index = 10 + site_match.start()
                 patient_name = line[name_start_index:name_end_index].strip()
-                result['patient_name'] = self._scramble_name(patient_name)
+                # Note: Patient name extraction removed - field no longer needed
+                # result['patient_name'] = patient_name  # Store original name without scrambling
 
                 if 'Site Code' not in result:
                     result['Site Code'] = site_match.group(1)
@@ -490,40 +491,74 @@ class MedicalReportExtractor:
                 if len(dates_found) >= 2:
                     result['Date of Post'] = dates_found[1]
                 
-                # Split % (might be present after dates)
-                if idx < len(parts):
-                    # Check if next value could be split percentage
-                    try:
-                        val = float(parts[idx].replace(',', ''))
-                        if 0 <= val <= 100:  # Likely a percentage
-                            result['Split %'] = parts[idx]
-                            idx += 1
-                    except ValueError:
-                        pass
-                
-                # Collect ALL remaining numeric values
-                numeric_values = []
-                text_values = []
-                while idx < len(parts):
-                    part = parts[idx].replace(',', '')
-                    try:
-                        numeric_values.append(float(part))
-                    except ValueError:
-                        text_values.append(part)
-                    idx += 1
-                
-                # Assign numeric values to remaining fields
-                # This is a bit fragile and depends on the order of fields in the PDF
-                # A more robust solution would use fixed-width parsing if possible
-                numeric_fields = [
+                # Robust parsing for all fields after dates
+                # Define the complete list of expected fields in order
+                post_date_fields = [
+                    'Split %',
                     'Anes Time (Min)', 'Anes Base Units', 'Med Base Units', 'Other Units',
                     'Chg Amt', 'Sub Pool %', 'Sb Pl Time (Min)', 'Anes Base', 'Med Base',
                     'Grp Pool %', 'Gr Pl Time (Min)', 'Grp Anes Base', 'Grp Med Base'
                 ]
                 
-                for i, val in enumerate(numeric_values):
-                    if i < len(numeric_fields):
-                        result[numeric_fields[i]] = str(val)
+                # Special handling for Split% vs Anes Time
+                if idx < len(parts):
+                    first_value = parts[idx]
+                    
+                    # Check if first value is a decimal (Split%) or integer (Anes Time)
+                    try:
+                        float_val = float(first_value.replace(',', ''))
+                        
+                        if '.' in first_value:  # Decimal number = Split%
+                            result['Split %'] = first_value
+                            idx += 1
+                            
+                            # Next value is Anes Time
+                            if idx < len(parts):
+                                result['Anes Time (Min)'] = parts[idx]
+                                idx += 1
+                            else:
+                                result['Anes Time (Min)'] = ''
+                        else:  # Integer = Anes Time, Split% is missing
+                            result['Split %'] = ''  # Split% is missing
+                            result['Anes Time (Min)'] = first_value
+                            idx += 1
+                            
+                    except ValueError:
+                        # Not a valid number, treat as missing Split%
+                        result['Split %'] = ''
+                        result['Anes Time (Min)'] = first_value
+                        idx += 1
+                else:
+                    # No more parts, set both to empty
+                    result['Split %'] = ''
+                    result['Anes Time (Min)'] = ''
+                
+                # Continue with remaining fields (starting from Anes Base Units)
+                remaining_fields = [
+                    'Anes Base Units', 'Med Base Units', 'Other Units',
+                    'Chg Amt', 'Sub Pool %', 'Sb Pl Time (Min)', 'Anes Base', 'Med Base',
+                    'Grp Pool %', 'Gr Pl Time (Min)', 'Grp Anes Base', 'Grp Med Base'
+                ]
+                
+                # Always consume a value for each expected field to maintain alignment
+                for field in remaining_fields:
+                    if idx < len(parts):
+                        value = parts[idx]
+                        
+                        # Validate numeric fields
+                        if field in ['Anes Base Units', 'Med Base Units', 'Other Units', 'Chg Amt', 'Sub Pool %', 'Sb Pl Time (Min)', 'Anes Base', 'Med Base', 'Grp Pool %', 'Gr Pl Time (Min)', 'Grp Anes Base', 'Grp Med Base']:
+                            # Try to convert to float, if it fails, set to empty
+                            try:
+                                float_val = float(value.replace(',', ''))
+                                result[field] = value
+                            except ValueError:
+                                # Not a valid number, set to empty
+                                result[field] = ''
+                        else:
+                            result[field] = value
+                        idx += 1
+                    else:
+                        result[field] = ''
             
             return result
             
@@ -531,42 +566,42 @@ class MedicalReportExtractor:
             logger.error(f"Error parsing charge transaction line: {str(e)}")
             return {}
 
-    def _anonymize_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Remove patient names and other sensitive information from DataFrame."""
-        if df.empty:
-            return df
-        
-        # List of column names that might contain patient information
-        sensitive_cols = ['Patient Name']
-        
-        for col in sensitive_cols:
-            if col in df.columns:
-                # Scramble the names
-                df[col] = df[col].apply(self._scramble_name)
-        
-        return df
+    # def _anonymize_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+    #     """Remove patient names and other sensitive information from DataFrame."""
+    #     if df.empty:
+    #         return df
+    #     
+    #     # List of column names that might contain patient information
+    #     sensitive_cols = ['Patient Name']
+    #     
+    #     for col in sensitive_cols:
+    #         if col in df.columns:
+    #             # Scramble the names
+    #             df[col] = df[col].apply(self._scramble_name)
+    #     
+    #     return df
 
-    def _scramble_name(self, name: str) -> str:
-        """
-        Scrambles the middle part of a name for anonymization.
-        Keeps the first and last letters of each word.
-        """
-        if not name:
-            return ""
-        
-        words = name.split()
-        scrambled_words = []
-        for word in words:
-            if len(word) > 2:
-                middle = list(word[1:-1])
-                import random
-                random.shuffle(middle)
-                scrambled_word = word[0] + "".join(middle) + word[-1]
-                scrambled_words.append(scrambled_word)
-            else:
-                scrambled_words.append(word)
-        
-        return " ".join(scrambled_words)
+    # def _scramble_name(self, name: str) -> str:
+    #     """
+    #     Scrambles the middle part of a name for anonymization.
+    #     Keeps the first and last letters of each word.
+    #     """
+    #     if not name:
+    #         return ""
+    #     
+    #     words = name.split()
+    #     scrambled_words = []
+    #     for word in words:
+    #         if len(word) > 2:
+    #             middle = list(word[1:-1])
+    #             import random
+    #             random.shuffle(middle)
+    #             scrambled_word = word[0] + "".join(middle) + word[-1]
+    #             scrambled_words.append(scrambled_word)
+    #         else:
+    #             scrambled_words.append(word)
+    #     
+    #     return " ".join(scrambled_words)
 
 def test_extractor():
     """Test function to verify the extractor works."""

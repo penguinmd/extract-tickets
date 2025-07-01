@@ -11,8 +11,9 @@ import seaborn as sns
 from sqlalchemy import text
 from datetime import datetime, timedelta
 import logging
-from database_models import engine, get_session
+from database_models import engine, get_session, MasterCase
 from asmg_calculator import ASMGCalculator
+import sqlalchemy
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -127,20 +128,21 @@ class CompensationAnalyzer:
         SELECT 
             cpt_code,
             COUNT(*) as frequency,
-            AVG(billed_amount) as avg_billed,
-            AVG(paid_amount) as avg_paid,
-            SUM(billed_amount) as total_billed,
-            SUM(paid_amount) as total_paid,
-            (AVG(paid_amount) / NULLIF(AVG(billed_amount), 0)) * 100 as payment_rate
+            AVG(CAST(anes_time_min AS REAL)) as avg_time,
+            AVG(CAST(anes_base_units AS REAL)) as avg_anes_units,
+            AVG(CAST(med_base_units AS REAL)) as avg_med_units,
+            SUM(CAST(anes_time_min AS REAL)) as total_time,
+            SUM(CAST(anes_base_units AS REAL)) as total_anes_units,
+            SUM(CAST(med_base_units AS REAL)) as total_med_units
         FROM charge_transactions 
         WHERE cpt_code IS NOT NULL AND cpt_code != ''
         GROUP BY cpt_code
-        HAVING frequency >= 5  -- Only include codes with at least 5 occurrences
+        HAVING frequency >= 2  -- Only include codes with at least 2 occurrences
         ORDER BY frequency DESC
         """
         
         df = pd.read_sql_query(query, self.engine)
-        numeric_cols = ['frequency', 'avg_billed', 'avg_paid', 'total_billed', 'total_paid', 'payment_rate']
+        numeric_cols = ['frequency', 'avg_time', 'avg_anes_units', 'avg_med_units', 'total_time', 'total_anes_units', 'total_med_units']
         df[numeric_cols] = df[numeric_cols].fillna(0)
         return df
     
@@ -153,22 +155,23 @@ class CompensationAnalyzer:
         """
         query = """
         SELECT 
-            insurance_carrier,
+            pay_code as insurance_carrier,
             COUNT(*) as claim_count,
-            AVG(billed_amount) as avg_billed,
-            AVG(paid_amount) as avg_paid,
-            SUM(billed_amount) as total_billed,
-            SUM(paid_amount) as total_paid,
-            (SUM(paid_amount) / NULLIF(SUM(billed_amount), 0)) * 100 as overall_payment_rate
+            AVG(CAST(anes_time_min AS REAL)) as avg_time,
+            AVG(CAST(anes_base_units AS REAL)) as avg_anes_units,
+            AVG(CAST(med_base_units AS REAL)) as avg_med_units,
+            SUM(CAST(anes_time_min AS REAL)) as total_time,
+            SUM(CAST(anes_base_units AS REAL)) as total_anes_units,
+            SUM(CAST(med_base_units AS REAL)) as total_med_units
         FROM charge_transactions 
-        WHERE insurance_carrier IS NOT NULL AND insurance_carrier != ''
-        GROUP BY insurance_carrier
-        HAVING claim_count >= 10  -- Only include carriers with at least 10 claims
-        ORDER BY total_paid DESC
+        WHERE pay_code IS NOT NULL AND pay_code != ''
+        GROUP BY pay_code
+        HAVING claim_count >= 5  -- Only include carriers with at least 5 claims
+        ORDER BY total_anes_units DESC
         """
         
         df = pd.read_sql_query(query, self.engine)
-        numeric_cols = ['claim_count', 'avg_billed', 'avg_paid', 'total_billed', 'total_paid', 'overall_payment_rate']
+        numeric_cols = ['claim_count', 'avg_time', 'avg_anes_units', 'avg_med_units', 'total_time', 'total_anes_units', 'total_med_units']
         df[numeric_cols] = df[numeric_cols].fillna(0)
         return df
 
@@ -349,7 +352,7 @@ class CompensationAnalyzer:
         """Plot top procedures by frequency and profitability."""
         df = self.get_procedure_profitability()
         
-        numeric_cols = ['frequency', 'avg_billed', 'avg_paid', 'total_billed', 'total_paid', 'payment_rate']
+        numeric_cols = ['frequency', 'avg_time', 'avg_anes_units', 'avg_med_units', 'total_time', 'total_anes_units', 'total_med_units']
         df[numeric_cols] = df[numeric_cols].fillna(0)
         
         if df.empty:
@@ -375,20 +378,19 @@ class CompensationAnalyzer:
             ax1.text(bar.get_x() + bar.get_width()/2., height,
                     f'{int(height)}', ha='center', va='bottom')
         
-        # Plot 2: Average payment
-        bars2 = ax2.bar(range(len(top_procedures)), top_procedures['avg_paid'])
-        ax2.set_title(f'Average Payment by CPT Code', fontsize=14, fontweight='bold')
+        # Plot 2: Average time
+        bars2 = ax2.bar(range(len(top_procedures)), top_procedures['avg_time'])
+        ax2.set_title(f'Average Time by CPT Code', fontsize=14, fontweight='bold')
         ax2.set_xlabel('CPT Code', fontsize=12)
-        ax2.set_ylabel('Average Payment ($)', fontsize=12)
+        ax2.set_ylabel('Average Time (min)', fontsize=12)
         ax2.set_xticks(range(len(top_procedures)))
         ax2.set_xticklabels(top_procedures['cpt_code'], rotation=45)
-        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
         
         # Add value labels on bars
         for i, bar in enumerate(bars2):
             height = bar.get_height()
             ax2.text(bar.get_x() + bar.get_width()/2., height,
-                    f'${height:,.0f}', ha='center', va='bottom')
+                    f'{height:.1f}', ha='center', va='bottom')
         
         plt.tight_layout()
         
@@ -402,7 +404,7 @@ class CompensationAnalyzer:
         """Plot top insurance carriers by total payments."""
         df = self.get_payer_performance()
         
-        numeric_cols = ['claim_count', 'avg_billed', 'avg_paid', 'total_billed', 'total_paid', 'overall_payment_rate']
+        numeric_cols = ['claim_count', 'avg_time', 'avg_anes_units', 'avg_med_units', 'total_time', 'total_anes_units', 'total_med_units']
         df[numeric_cols] = df[numeric_cols].fillna(0)
         
         if df.empty:
@@ -413,20 +415,19 @@ class CompensationAnalyzer:
         
         fig, ax = plt.subplots(figsize=(12, 8))
         
-        bars = ax.barh(range(len(top_payers)), top_payers['total_paid'])
-        ax.set_title(f'Top {top_n} Insurance Carriers by Total Payments', 
+        bars = ax.barh(range(len(top_payers)), top_payers['total_time'])
+        ax.set_title(f'Top {top_n} Insurance Carriers by Total Time', 
                     fontsize=14, fontweight='bold')
-        ax.set_xlabel('Total Payments ($)', fontsize=12)
+        ax.set_xlabel('Total Time (min)', fontsize=12)
         ax.set_ylabel('Insurance Carrier', fontsize=12)
         ax.set_yticks(range(len(top_payers)))
         ax.set_yticklabels(top_payers['insurance_carrier'])
-        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
         
         # Add value labels on bars
         for i, bar in enumerate(bars):
             width = bar.get_width()
             ax.text(width, bar.get_y() + bar.get_height()/2.,
-                   f'${width:,.0f}', ha='left', va='center', fontweight='bold')
+                   f'{width:.1f}', ha='left', va='center')
         
         plt.tight_layout()
         
@@ -542,7 +543,7 @@ class CompensationAnalyzer:
             print("PROCEDURE ANALYSIS:")
             print(f"  Total unique CPT codes: {len(procedure_df)}")
             print(f"  Most frequent procedure: {procedure_df.iloc[0]['cpt_code']} ({procedure_df.iloc[0]['frequency']} times)")
-            print(f"  Highest paying procedure: {procedure_df.loc[procedure_df['avg_paid'].idxmax()]['cpt_code']} (${procedure_df['avg_paid'].max():,.2f})")
+            print(f"  Highest paying procedure: {procedure_df.loc[procedure_df['avg_time'].idxmax()]['cpt_code']} (${procedure_df['avg_time'].max():,.2f})")
             print()
         
         # Payer analysis
@@ -550,9 +551,337 @@ class CompensationAnalyzer:
         if not payer_df.empty:
             print("PAYER ANALYSIS:")
             print(f"  Total insurance carriers: {len(payer_df)}")
-            print(f"  Top payer: {payer_df.iloc[0]['insurance_carrier']} (${payer_df.iloc[0]['total_paid']:,.2f})")
-            print(f"  Average payment rate: {payer_df['overall_payment_rate'].mean():.1f}%")
+            print(f"  Top payer: {payer_df.iloc[0]['insurance_carrier']} (${payer_df.iloc[0]['total_time']:,.2f})")
+            print(f"  Average payment rate: {payer_df['avg_time'].mean():.1f}%")
             print()
+
+    def get_available_years(self):
+        """Return a sorted list of all years present in MasterCase.date_of_service."""
+        session = get_session()
+        try:
+            years = session.query(sqlalchemy.extract('year', MasterCase.date_of_service)).distinct().all()
+            years = sorted({int(y[0]) for y in years if y[0] is not None})
+            return years
+        finally:
+            session.close()
+
+    def get_master_case_analysis(self, year=None):
+        """Get comprehensive analysis of master cases for a specific year (or latest year if not provided)."""
+        session = get_session()
+        try:
+            cases = session.query(MasterCase).filter(MasterCase.date_of_service.isnot(None)).all()
+            available_years = sorted({c.date_of_service.year for c in cases if c.date_of_service})
+            if not available_years:
+                return {}
+            if year is None:
+                year = max(available_years)
+            # Filter cases for the selected year
+            cases_for_year = [c for c in cases if c.date_of_service and c.date_of_service.year == year]
+            # Pass all cases for year-over-year, but only cases_for_year for monthly, weekly, etc.
+            yearly_data = self._analyze_yearly_data(cases)
+            monthly_data = self._analyze_monthly_data(cases_for_year, year)
+            weekly_data = self._analyze_weekly_data(cases_for_year, year)
+            seasonal_data = self._analyze_seasonal_data(cases_for_year, year)
+            regional_data = self._analyze_regional_anesthesia(cases_for_year, year)
+            cpt_data = self._analyze_cpt_codes(cases_for_year, year)
+            # Find extremes in the selected year
+            if cases_for_year:
+                longest_case = max(cases_for_year, key=lambda x: x.total_anes_time or 0)
+                most_anes_units = max(cases_for_year, key=lambda x: x.total_anes_base_units or 0)
+                most_med_units = max(cases_for_year, key=lambda x: x.total_med_base_units or 0)
+                most_asmg_units = max(cases_for_year, key=lambda x: x.asmg_units or 0)
+            else:
+                longest_case = most_anes_units = most_med_units = most_asmg_units = None
+            return {
+                'total_cases': len(cases_for_year),
+                'total_anes_time': sum(c.total_anes_time or 0 for c in cases_for_year),
+                'total_anes_units': sum(c.total_anes_base_units or 0 for c in cases_for_year),
+                'total_med_units': sum(c.total_med_base_units or 0 for c in cases_for_year),
+                'total_asmg_units': sum(c.asmg_units or 0 for c in cases_for_year),
+                'longest_case': {
+                    'ticket': longest_case.patient_ticket_number if longest_case else None,
+                    'time': longest_case.total_anes_time if longest_case else None,
+                    'date': longest_case.date_of_service if longest_case else None
+                },
+                'most_anes_units': {
+                    'ticket': most_anes_units.patient_ticket_number if most_anes_units else None,
+                    'units': most_anes_units.total_anes_base_units if most_anes_units else None,
+                    'date': most_anes_units.date_of_service if most_anes_units else None
+                },
+                'most_med_units': {
+                    'ticket': most_med_units.patient_ticket_number if most_med_units else None,
+                    'units': most_med_units.total_med_base_units if most_med_units else None,
+                    'date': most_med_units.date_of_service if most_med_units else None
+                },
+                'most_asmg_units': {
+                    'ticket': most_asmg_units.patient_ticket_number if most_asmg_units else None,
+                    'units': most_asmg_units.asmg_units if most_asmg_units else None,
+                    'date': most_asmg_units.date_of_service if most_asmg_units else None
+                },
+                'yearly_analysis': yearly_data,
+                'monthly_analysis': monthly_data,
+                'weekly_analysis': weekly_data,
+                'seasonal_analysis': seasonal_data,
+                'regional_anesthesia': regional_data,
+                'cpt_analysis': cpt_data,
+                'selected_year': year,
+                'available_years': available_years
+            }
+        finally:
+            session.close()
+
+    def _analyze_yearly_data(self, cases):
+        """Analyze data by year with year-over-year comparisons."""
+        from collections import defaultdict
+        import datetime
+        
+        yearly_stats = defaultdict(lambda: {
+            'cases': 0, 'total_time': 0, 'total_anes_units': 0, 
+            'total_med_units': 0, 'total_asmg_units': 0,
+            'avg_time_per_case': 0, 'avg_anes_units_per_case': 0,
+            'avg_med_units_per_case': 0, 'avg_asmg_units_per_case': 0
+        })
+        
+        current_year = datetime.date.today().year
+        
+        for case in cases:
+            if case.date_of_service:
+                year = case.date_of_service.year
+                yearly_stats[year]['cases'] += 1
+                yearly_stats[year]['total_time'] += case.total_anes_time or 0
+                yearly_stats[year]['total_anes_units'] += case.total_anes_base_units or 0
+                yearly_stats[year]['total_med_units'] += case.total_med_base_units or 0
+                yearly_stats[year]['total_asmg_units'] += case.asmg_units or 0
+        
+        # Calculate averages
+        for year in yearly_stats:
+            if yearly_stats[year]['cases'] > 0:
+                yearly_stats[year]['avg_time_per_case'] = yearly_stats[year]['total_time'] / yearly_stats[year]['cases']
+                yearly_stats[year]['avg_anes_units_per_case'] = yearly_stats[year]['total_anes_units'] / yearly_stats[year]['cases']
+                yearly_stats[year]['avg_med_units_per_case'] = yearly_stats[year]['total_med_units'] / yearly_stats[year]['cases']
+                yearly_stats[year]['avg_asmg_units_per_case'] = yearly_stats[year]['total_asmg_units'] / yearly_stats[year]['cases']
+        
+        # Year-over-year growth calculations
+        years = sorted(yearly_stats.keys())
+        yoy_growth = {}
+        
+        for i, year in enumerate(years[1:], 1):
+            prev_year = years[i-1]
+            yoy_growth[year] = {
+                'cases_growth': self._calculate_growth_rate(
+                    yearly_stats[prev_year]['cases'], yearly_stats[year]['cases']),
+                'time_growth': self._calculate_growth_rate(
+                    yearly_stats[prev_year]['total_time'], yearly_stats[year]['total_time']),
+                'asmg_units_growth': self._calculate_growth_rate(
+                    yearly_stats[prev_year]['total_asmg_units'], yearly_stats[year]['total_asmg_units'])
+            }
+        
+        return {
+            'yearly_stats': dict(yearly_stats),
+            'yoy_growth': yoy_growth,
+            'current_year': current_year,
+            'years_with_data': years
+        }
+
+    def _analyze_monthly_data(self, cases, year):
+        from collections import defaultdict
+        import datetime
+        
+        # Prepare stats for all 12 months
+        monthly_stats = {m: {'cases': 0, 'total_time': 0, 'total_anes_units': 0, 'total_med_units': 0, 'total_asmg_units': 0} for m in range(1, 13)}
+        for case in cases:
+            if case.date_of_service and case.date_of_service.year == year:
+                month = case.date_of_service.month
+                monthly_stats[month]['cases'] += 1
+                monthly_stats[month]['total_time'] += case.total_anes_time or 0
+                monthly_stats[month]['total_anes_units'] += case.total_anes_base_units or 0
+                monthly_stats[month]['total_med_units'] += case.total_med_base_units or 0
+                monthly_stats[month]['total_asmg_units'] += case.asmg_units or 0
+        # Only keep months with data
+        monthly_stats = {m: v for m, v in monthly_stats.items() if v['cases'] > 0}
+        # Calculate monthly averages across years (unchanged)
+        monthly_averages = defaultdict(lambda: {
+            'avg_cases': 0, 'avg_time': 0, 'avg_anes_units': 0, 
+            'avg_med_units': 0, 'avg_asmg_units': 0, 'years_count': 0
+        })
+        # (Skip averaging logic for now if not needed)
+        # Year-to-date is the sum for the selected year
+        ytd_stats = {
+            'cases': sum(monthly_stats[m]['cases'] for m in monthly_stats),
+            'total_time': sum(monthly_stats[m]['total_time'] for m in monthly_stats),
+            'total_anes_units': sum(monthly_stats[m]['total_anes_units'] for m in monthly_stats),
+            'total_med_units': sum(monthly_stats[m]['total_med_units'] for m in monthly_stats),
+            'total_asmg_units': sum(monthly_stats[m]['total_asmg_units'] for m in monthly_stats),
+        }
+        return {
+            'monthly_stats': {year: monthly_stats},
+            'monthly_averages': dict(monthly_averages),
+            'ytd_stats': ytd_stats,
+            'current_year': year,
+            'current_month': max(monthly_stats.keys()) if monthly_stats else 1
+        }
+
+    def _analyze_seasonal_data(self, cases, year):
+        """Analyze seasonal patterns and trends."""
+        from collections import defaultdict
+        import datetime
+        
+        seasonal_stats = defaultdict(lambda: {
+            'cases': 0, 'total_time': 0, 'total_anes_units': 0, 
+            'total_med_units': 0, 'total_asmg_units': 0
+        })
+        
+        for case in cases:
+            if case.date_of_service:
+                month = case.date_of_service.month
+                if month in [12, 1, 2]:
+                    season = 'Winter'
+                elif month in [3, 4, 5]:
+                    season = 'Spring'
+                elif month in [6, 7, 8]:
+                    season = 'Summer'
+                else:
+                    season = 'Fall'
+                
+                seasonal_stats[season]['cases'] += 1
+                seasonal_stats[season]['total_time'] += case.total_anes_time or 0
+                seasonal_stats[season]['total_anes_units'] += case.total_anes_base_units or 0
+                seasonal_stats[season]['total_med_units'] += case.total_med_base_units or 0
+                seasonal_stats[season]['total_asmg_units'] += case.asmg_units or 0
+        
+        # Calculate seasonal averages
+        for season in seasonal_stats:
+            if seasonal_stats[season]['cases'] > 0:
+                seasonal_stats[season]['avg_time_per_case'] = seasonal_stats[season]['total_time'] / seasonal_stats[season]['cases']
+                seasonal_stats[season]['avg_anes_units_per_case'] = seasonal_stats[season]['total_anes_units'] / seasonal_stats[season]['cases']
+                seasonal_stats[season]['avg_med_units_per_case'] = seasonal_stats[season]['total_med_units'] / seasonal_stats[season]['cases']
+                seasonal_stats[season]['avg_asmg_units_per_case'] = seasonal_stats[season]['total_asmg_units'] / seasonal_stats[season]['cases']
+        
+        return dict(seasonal_stats)
+
+    def _calculate_growth_rate(self, old_value, new_value):
+        """Calculate percentage growth rate."""
+        if old_value == 0:
+            return 999999 if new_value > 0 else 0
+        return ((new_value - old_value) / old_value) * 100
+
+    def _analyze_weekly_data(self, cases, year):
+        weekly_stats = {}
+        for case in cases:
+            if case.date_of_service and case.date_of_service.year == year:
+                week = case.date_of_service.isocalendar()[1]
+                if week not in weekly_stats:
+                    weekly_stats[week] = {'cases': 0, 'total_time': 0, 'total_anes_units': 0, 'total_med_units': 0, 'total_asmg_units': 0}
+                weekly_stats[week]['cases'] += 1
+                weekly_stats[week]['total_time'] += case.total_anes_time or 0
+                weekly_stats[week]['total_anes_units'] += case.total_anes_base_units or 0
+                weekly_stats[week]['total_med_units'] += case.total_med_base_units or 0
+                weekly_stats[week]['total_asmg_units'] += case.asmg_units or 0
+        return weekly_stats
+
+    def _analyze_regional_anesthesia(self, cases, year):
+        """
+        Analyze regional anesthesia cases (cases with medical units).
+        
+        Args:
+            cases: List of MasterCase objects
+            
+        Returns:
+            dict: Regional anesthesia analysis
+        """
+        from collections import defaultdict
+        
+        # Filter cases with medical units (regional anesthesia)
+        regional_cases = [case for case in cases if case.total_med_base_units and case.total_med_base_units > 0]
+        
+        if not regional_cases:
+            return {
+                'total_regional_cases': 0,
+                'percentage_of_total': 0,
+                'total_med_units': 0,
+                'average_med_units_per_case': 0,
+                'by_temporal_period': {}
+            }
+        
+        # Basic metrics
+        total_regional_cases = len(regional_cases)
+        total_med_units = sum(case.total_med_base_units for case in regional_cases)
+        average_med_units_per_case = total_med_units / total_regional_cases
+        percentage_of_total = (total_regional_cases / len(cases)) * 100 if cases else 0
+        
+        # Analyze by temporal periods (using ASMG rules)
+        temporal_analysis = defaultdict(lambda: {'cases': 0, 'total_med_units': 0})
+        
+        for case in regional_cases:
+            if case.date_of_service:
+                # Determine temporal period based on ASMG rules
+                try:
+                    from asmg_calculator import ASMGCalculator
+                    calculator = ASMGCalculator(self.session)
+                    rule = calculator.get_applicable_rule(case.date_of_service)
+                    period = rule.description if rule and rule.description else 'Unknown'
+                except:
+                    period = 'Unknown'
+                
+                temporal_analysis[period]['cases'] += 1
+                temporal_analysis[period]['total_med_units'] += case.total_med_base_units
+        
+        return {
+            'total_regional_cases': total_regional_cases,
+            'percentage_of_total': percentage_of_total,
+            'total_med_units': total_med_units,
+            'average_med_units_per_case': average_med_units_per_case,
+            'by_temporal_period': dict(temporal_analysis)
+        }
+
+    def _analyze_cpt_codes(self, cases, year):
+        """
+        Analyze CPT codes across all cases.
+        
+        Args:
+            cases: List of MasterCase objects
+            
+        Returns:
+            dict: CPT code analysis
+        """
+        from collections import defaultdict
+        
+        cpt_frequency = defaultdict(int)
+        cpt_time = defaultdict(list)
+        cpt_anes_units = defaultdict(list)
+        
+        for case in cases:
+            if case.cpt_code:
+                # Split multiple CPT codes
+                cpt_codes = [code.strip() for code in case.cpt_code.split(',')]
+                for cpt in cpt_codes:
+                    if cpt:
+                        cpt_frequency[cpt] += 1
+                        if case.total_anes_time:
+                            cpt_time[cpt].append(case.total_anes_time)
+                        if case.total_anes_base_units:
+                            cpt_anes_units[cpt].append(case.total_anes_base_units)
+        
+        # Get most common CPT codes
+        most_common_cpt = sorted(cpt_frequency.items(), key=lambda x: x[1], reverse=True)
+        
+        # Calculate averages for each CPT
+        cpt_averages = {}
+        for cpt in cpt_frequency.keys():
+            avg_time = sum(cpt_time[cpt]) / len(cpt_time[cpt]) if cpt_time[cpt] else 0
+            avg_anes_units = sum(cpt_anes_units[cpt]) / len(cpt_anes_units[cpt]) if cpt_anes_units[cpt] else 0
+            
+            cpt_averages[cpt] = {
+                'frequency': cpt_frequency[cpt],
+                'average_time': avg_time,
+                'average_anes_units': avg_anes_units
+            }
+        
+        return {
+            'most_common': most_common_cpt[:10],  # Top 10
+            'total_unique_cpt_codes': len(cpt_frequency),
+            'cpt_details': cpt_averages
+        }
 
 def main():
     """Main function for running analysis."""

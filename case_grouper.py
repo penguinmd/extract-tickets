@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 from sqlalchemy.orm import sessionmaker
 from database_models import get_session, ChargeTransaction, MasterCase
 from sqlalchemy import and_
@@ -22,10 +22,10 @@ class CaseGrouper:
         """
         # Step 1: Get all transactions and group them by the case key criteria
         transactions = self.session.query(ChargeTransaction).all()
-        
+
         # Step 2: Group transactions by ticket number (patient identifier)
         case_groups = self._group_transactions_by_case_criteria(transactions)
-        
+
         # Step 3: Create or update MasterCase records and link transactions
         self._create_and_link_master_cases(case_groups)
         
@@ -128,11 +128,22 @@ class CaseGrouper:
             date_of_service = None
             if all_dates:
                 try:
-                    date_objects = [datetime.strptime(date_str, '%m/%d/%y').date() for date_str in all_dates]
-                    date_of_service = min(date_objects)
-                except ValueError:
-                    # If date parsing fails, use the first date string
-                    date_of_service = list(all_dates)[0]
+                    # Filter out invalid date strings
+                    valid_dates = []
+                    for date_str in all_dates:
+                        if date_str and str(date_str).lower() not in ['nan', 'none', '']:
+                            try:
+                                date_obj = datetime.strptime(str(date_str), '%m/%d/%y').date()
+                                valid_dates.append(date_obj)
+                            except ValueError:
+                                logger.warning(f"Invalid date format: {date_str}")
+                    
+                    if valid_dates:
+                        date_of_service = min(valid_dates)
+                    else:
+                        logger.warning(f"No valid dates found for case {patient_ticket}")
+                except Exception as e:
+                    logger.warning(f"Error processing dates for case {patient_ticket}: {str(e)}")
             
             # Combine all CPT codes into a comma-separated list
             cpt_codes_combined = ', '.join(sorted(all_cpt_codes)) if all_cpt_codes else ''
@@ -147,14 +158,10 @@ class CaseGrouper:
             
             # Calculate ASMG units
             asmg_units = 0.0
-            if date_of_service:
+            if date_of_service and isinstance(date_of_service, (date, datetime)):
                 try:
-                    # Convert string date to date object if needed
-                    if isinstance(date_of_service, str):
-                        case_date = datetime.strptime(date_of_service, '%m/%d/%y').date()
-                    else:
-                        case_date = date_of_service
-                    
+                    # Convert to date if it's a datetime
+                    case_date = date_of_service.date() if isinstance(date_of_service, datetime) else date_of_service
                     asmg_units = calculator.calculate_asmg_units(
                         case_date=case_date,
                         total_anes_units=total_anes_base_units,
@@ -164,7 +171,14 @@ class CaseGrouper:
                 except Exception as e:
                     logger.warning(f"Error calculating ASMG units for case {patient_ticket}: {str(e)}")
                     asmg_units = 0.0
+            else:
+                logger.warning(f"No valid date for ASMG calculation for case {patient_ticket}")
             
+            # Validate required fields before creating/updating case
+            if not patient_ticket or str(patient_ticket).lower() in ['nan', 'none', '']:
+                logger.warning(f"Skipping case with invalid ticket number: {patient_ticket}")
+                continue
+
             # Check if case already exists
             existing_case = self.session.query(MasterCase).filter_by(
                 patient_ticket_number=patient_ticket
@@ -200,7 +214,7 @@ class CaseGrouper:
                 )
                 self.session.add(master_case)
                 self.session.flush()  # Get the ID
-            
+
             # Link all transactions to the master case
             for transaction in transactions:
                 transaction.master_case_id = master_case.id

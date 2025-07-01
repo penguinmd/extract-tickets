@@ -103,48 +103,50 @@
                             <tr>
                                 {% macro sortable_header(column, display_name) %}
                                     <th>
-                                        <a href="{{ url_for('tickets', sort_by=column, sort_order='desc' if sort_by == column and sort_order == 'asc' else 'asc') }}">
-                                            {{ display_name }}
+                                        <a href="{{ url_for('tickets', sort_by=column, sort_order='desc' if sort_by == column and sort_order == 'asc' else 'asc') }}" 
+                                           class="text-decoration-none">
+                                            <span>{{ display_name }}</span>
                                             {% if sort_by == column %}
-                                                <i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>
+                                                <i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }} text-primary"></i>
+                                            {% else %}
+                                                <i class="fas fa-sort text-muted"></i>
                                             {% endif %}
                                         </a>
                                     </th>
                                 {% endmacro %}
-                                <th>Phys Ticket Ref#</th>
-                                <th>Patient Name</th>
-                                <th>Note</th>
-                                <th>Original Chg Mo</th>
-                                <th>Site Code</th>
-                                <th>Serv Type</th>
-                                <th>CPT Code</th>
-                                <th>Pay Code</th>
-                                <th>Start Time</th>
-                                <th>Stop Time</th>
-                                <th>OB Case Pos</th>
-                                <th>Date of Service</th>
-                                <th>Date of Post</th>
-                                <th>Split %</th>
-                                <th>Anes Time (Min)</th>
-                                <th>Anes Base Units</th>
-                                <th>Med Base Units</th>
-                                <th>Other Units</th>
-                                <th>Chg Amt</th>
-                                <th>Sub Pool %</th>
-                                <th>Sb Pl Time (Min)</th>
-                                <th>Anes Base</th>
-                                <th>Med Base</th>
-                                <th>Grp Pool %</th>
-                                <th>Gr Pl Time (Min)</th>
-                                <th>Anes Base</th>
-                                <th>Med Base</th>
+                                
+                                {{ sortable_header('phys_ticket_ref', 'Phys Ticket Ref#') }}
+                                {{ sortable_header('note', 'Note') }}
+                                {{ sortable_header('original_chg_mo', 'Original Chg Mo') }}
+                                {{ sortable_header('site_code', 'Site Code') }}
+                                {{ sortable_header('serv_type', 'Serv Type') }}
+                                {{ sortable_header('cpt_code', 'CPT Code') }}
+                                {{ sortable_header('pay_code', 'Pay Code') }}
+                                {{ sortable_header('start_time', 'Start Time') }}
+                                {{ sortable_header('stop_time', 'Stop Time') }}
+                                {{ sortable_header('ob_case_pos', 'OB Case Pos') }}
+                                {{ sortable_header('date_of_service', 'Date of Service') }}
+                                {{ sortable_header('date_of_post', 'Date of Post') }}
+                                {{ sortable_header('split_percent', 'Split %') }}
+                                {{ sortable_header('anes_time_min', 'Anes Time (Min)') }}
+                                {{ sortable_header('anes_base_units', 'Anes Base Units') }}
+                                {{ sortable_header('med_base_units', 'Med Base Units') }}
+                                {{ sortable_header('other_units', 'Other Units') }}
+                                {{ sortable_header('chg_amt', 'Chg Amt') }}
+                                {{ sortable_header('sub_pool_percent', 'Sub Pool %') }}
+                                {{ sortable_header('sb_pl_time_min', 'Sb Pl Time (Min)') }}
+                                {{ sortable_header('anes_base', 'Anes Base') }}
+                                {{ sortable_header('med_base', 'Med Base') }}
+                                {{ sortable_header('grp_pool_percent', 'Grp Pool %') }}
+                                {{ sortable_header('gr_pl_time_min', 'Gr Pl Time (Min)') }}
+                                {{ sortable_header('grp_anes_base', 'Grp Anes Base') }}
+                                {{ sortable_header('grp_med_base', 'Grp Med Base') }}
                             </tr>
                         </thead>
                         <tbody>
                             {% for row in transactions_data %}
                             <tr>
                                 <td>{{ row.phys_ticket_ref or '' }}</td>
-                                <td>{{ row.patient_name or '' }}</td>
                                 <td>{{ row.note or '' }}</td>
                                 <td>{{ row.original_chg_mo or '' }}</td>
                                 <td>{{ row.site_code or '' }}</td>
@@ -218,13 +220,13 @@ document.addEventListener('DOMContentLoaded', function() {
         rows.forEach(row => {
             const cells = row.querySelectorAll('td');
             const ticketRef = cells[0].textContent.toLowerCase();
-            const service = cells[1].textContent.trim();
-            const cptCode = cells[2].textContent.toLowerCase();
-            const insurance = cells[3].textContent.trim();
+            const cptCode = cells[5].textContent.toLowerCase();
+            const service = cells[4].textContent.trim();
 
-            const matchesSearch = ticketRef.includes(searchTerm) || cptCode.includes(searchTerm);
+            const matchesSearch = ticketRef.includes(searchTerm) || 
+                                cptCode.includes(searchTerm);
             const matchesService = !serviceType || service.includes(serviceType);
-            const matchesInsurance = !insuranceType || insurance.includes(insuranceType);
+            const matchesInsurance = !insuranceType || true; // No insurance column in current data
 
             if (matchesSearch && matchesService && matchesInsurance) {
                 row.style.display = '';

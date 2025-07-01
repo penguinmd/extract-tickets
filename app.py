@@ -18,6 +18,13 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.secret_key = 'supersecretkey'  # Required for flashing messages
 
+# Custom template filter for month names
+@app.template_filter('month_name')
+def month_name(month_number):
+    """Convert month number to month name."""
+    import calendar
+    return calendar.month_name[month_number]
+
 def allowed_file(filename):
     """Check if the file has an allowed extension."""
     return '.' in filename and \
@@ -108,17 +115,48 @@ def analysis():
         reports_dir = Path('static/reports')
         reports_dir.mkdir(exist_ok=True)
         
-        # Generate charts
-        analyzer.plot_income_trend(save_path=str(reports_dir / 'income_trend.png'))
-        analyzer.plot_seasonal_trends(save_path=str(reports_dir / 'seasonal_trends.png'))
-        analyzer.plot_procedure_profitability(save_path=str(reports_dir / 'procedure_profitability.png'))
-        analyzer.plot_payer_performance(save_path=str(reports_dir / 'payer_performance.png'))
+        # Generate charts (temporarily commented out to debug)
+        # analyzer.plot_income_trend(save_path=str(reports_dir / 'income_trend.png'))
+        # analyzer.plot_seasonal_trends(save_path=str(reports_dir / 'seasonal_trends.png'))
+        # analyzer.plot_procedure_profitability(save_path=str(reports_dir / 'procedure_profitability.png'))
+        # analyzer.plot_payer_performance(save_path=str(reports_dir / 'payer_performance.png'))
 
-        return render_template('analysis.html')
+        # Get master case analysis
+        master_case_analysis = analyzer.get_master_case_analysis()
+        
+        # Debug output
+        app.logger.info(f"Master case analysis result: {master_case_analysis}")
+        app.logger.info(f"Type of master_case_analysis: {type(master_case_analysis)}")
+        if master_case_analysis:
+            app.logger.info(f"Total cases: {master_case_analysis.get('total_cases', 'N/A')}")
+            app.logger.info(f"Keys in master_case_analysis: {list(master_case_analysis.keys()) if isinstance(master_case_analysis, dict) else 'Not a dict'}")
+        else:
+            app.logger.warning("master_case_analysis is None or empty")
+
+        return render_template('analysis.html', mca=master_case_analysis)
     except Exception as e:
         app.logger.error(f"Analysis page error: {str(e)}\n{traceback.format_exc()}")
         flash(f"Error generating analysis: {str(e)}", 'danger')
-        return render_template('analysis.html')
+        return render_template('analysis.html', mca={})
+
+def regenerate_master_cases():
+    """Clear and rebuild master cases from all transactions."""
+    from case_grouper import CaseGrouper
+    from database_models import get_session, MasterCase
+    session = get_session()
+    try:
+        grouper = CaseGrouper(session)
+        session.query(MasterCase).delete(synchronize_session=False)
+        session.commit()
+        grouper.group_transactions_into_cases()
+        stats = grouper.get_case_statistics()
+        return stats
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error regenerating master cases: {str(e)}")
+        return None
+    finally:
+        session.close()
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -144,7 +182,9 @@ def upload_file():
             success = processor.process_single_file(file_path)
             
             if success:
-                flash(f'File "{filename}" uploaded and processed successfully!', 'success')
+                # Automatically regenerate master cases
+                stats = regenerate_master_cases()
+                flash(f'File "{filename}" uploaded and processed successfully! Master cases regenerated ({stats["total_cases"]} cases).', 'success')
             else:
                 flash(f'Error processing file "{filename}". Check logs for details.', 'danger')
         except Exception as e:
@@ -154,6 +194,59 @@ def upload_file():
         return redirect(url_for('index'))
     else:
         flash('Invalid file type. Please upload a PDF.', 'danger')
+        return redirect(url_for('index'))
+
+@app.route('/batch_upload', methods=['POST'])
+def batch_upload():
+    """Handle batch file upload and processing."""
+    if 'files' not in request.files:
+        flash('No files selected', 'warning')
+        return redirect(url_for('index'))
+    
+    files = request.files.getlist('files')
+    if not files or files[0].filename == '':
+        flash('No files selected', 'warning')
+        return redirect(url_for('index'))
+    
+    successful_files = []
+    failed_files = []
+    
+    try:
+        for file in files:
+            if file and allowed_file(file.filename):
+                try:
+                    # Save file temporarily
+                    filename = secure_filename(file.filename)
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(filepath)
+                    
+                    # Process the file
+                    processor = ReportProcessor(archive_processed=True)
+                    success = processor.process_single_file(filepath)
+                    
+                    if success:
+                        successful_files.append(filename)
+                    else:
+                        failed_files.append(filename)
+                        
+                except Exception as e:
+                    app.logger.error(f"Batch upload error for {file.filename}: {str(e)}")
+                    failed_files.append(file.filename)
+            else:
+                failed_files.append(file.filename)
+        
+        # Automatically regenerate master cases after batch upload
+        stats = regenerate_master_cases()
+        flash(f'Batch processing completed: {len(successful_files)} successful, {len(failed_files)} failed. Master cases regenerated ({stats["total_cases"]} cases).', 'success')
+        if successful_files:
+            flash(f'Successfully processed: {", ".join(successful_files)}', 'success')
+        if failed_files:
+            flash(f'Failed to process: {", ".join(failed_files)}', 'danger')
+            
+    except Exception as e:
+        app.logger.error(f"Batch upload error: {str(e)}")
+        flash(f'Error during batch processing: {str(e)}', 'danger')
+    
         return redirect(url_for('index'))
 
 @app.route('/delete_report/<int:summary_id>', methods=['POST'])
@@ -190,6 +283,24 @@ def health_check():
     """A simple health check endpoint."""
     return jsonify({"status": "ok"}), 200
 
+@app.route('/debug_analysis')
+def debug_analysis():
+    """Debug endpoint to test analysis data."""
+    try:
+        analyzer = CompensationAnalyzer()
+        master_case_analysis = analyzer.get_master_case_analysis()
+        
+        return jsonify({
+            'type': str(type(master_case_analysis)),
+            'is_none': master_case_analysis is None,
+            'is_empty': len(master_case_analysis) == 0 if master_case_analysis else True,
+            'keys': list(master_case_analysis.keys()) if master_case_analysis else [],
+            'total_cases': master_case_analysis.get('total_cases', 'N/A') if master_case_analysis else 'N/A',
+            'sample_data': master_case_analysis
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/delete', methods=['GET', 'POST'])
 def delete_all_data():
     """Delete all data from the database."""
@@ -209,6 +320,75 @@ def delete_all_data():
             session.close()
         return redirect(url_for('delete_all_data'))
     return render_template('delete.html')
+
+@app.route('/asmg_rules')
+def asmg_rules():
+    """ASMG temporal rules management page."""
+    try:
+        from asmg_calculator import ASMGCalculator
+        
+        calculator = ASMGCalculator()
+        rules = calculator.get_all_rules()
+        
+        return render_template('asmg_rules.html', rules=rules)
+    except Exception as e:
+        app.logger.error(f"ASMG rules page error: {str(e)}\n{traceback.format_exc()}")
+        flash(f"Error loading ASMG rules: {str(e)}", 'danger')
+        return render_template('asmg_rules.html', rules=[])
+
+@app.route('/asmg_rules/add', methods=['POST'])
+def add_asmg_rule():
+    """Add or update an ASMG temporal rule."""
+    try:
+        from asmg_calculator import ASMGCalculator
+        from datetime import datetime
+        
+        # Get form data
+        effective_date = datetime.strptime(request.form['effective_date'], '%Y-%m-%d').date()
+        anes_units_multiplier = float(request.form['anes_units_multiplier'])
+        anes_time_divisor = float(request.form['anes_time_divisor'])
+        med_units_multiplier = float(request.form['med_units_multiplier'])
+        description = request.form.get('description', '')
+        
+        calculator = ASMGCalculator()
+        success = calculator.add_rule(
+            effective_date=effective_date,
+            anes_units_multiplier=anes_units_multiplier,
+            anes_time_divisor=anes_time_divisor,
+            med_units_multiplier=med_units_multiplier,
+            description=description
+        )
+        
+        if success:
+            flash('ASMG rule added/updated successfully!', 'success')
+        else:
+            flash('Error adding ASMG rule. Please try again.', 'danger')
+            
+    except Exception as e:
+        app.logger.error(f"Error adding ASMG rule: {str(e)}\n{traceback.format_exc()}")
+        flash(f'Error adding ASMG rule: {str(e)}', 'danger')
+    
+    return redirect(url_for('asmg_rules'))
+
+@app.route('/asmg_rules/delete/<int:rule_id>', methods=['POST'])
+def delete_asmg_rule(rule_id):
+    """Delete an ASMG temporal rule."""
+    try:
+        from asmg_calculator import ASMGCalculator
+        
+        calculator = ASMGCalculator()
+        success = calculator.delete_rule(rule_id)
+        
+        if success:
+            flash('ASMG rule deleted successfully!', 'success')
+        else:
+            flash('Error deleting ASMG rule. Please try again.', 'danger')
+            
+    except Exception as e:
+        app.logger.error(f"Error deleting ASMG rule: {str(e)}\n{traceback.format_exc()}")
+        flash(f'Error deleting ASMG rule: {str(e)}', 'danger')
+    
+    return redirect(url_for('asmg_rules'))
 
 if __name__ == '__main__':
     # Ensure directories exist
