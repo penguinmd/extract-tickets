@@ -14,210 +14,212 @@
 <!-- Master Case Analysis Section -->
 <div class="row mb-4">
     <div class="col-12">
-        <div class="card">
-            <div class="card-header">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
                 <h5 class="mb-0">
-                    <i class="fas fa-folder-open"></i> Master Case Analysis
+                    <i class="fas fa-trophy"></i> Year to Date Summary ({{ mca.selected_year }})
                 </h5>
             </div>
             <div class="card-body">
-    
-
-                <!-- Overall Statistics -->
-                <div class="row mb-4">
-                    <div class="col-md-3">
+                <div class="row">
+                    <div class="col-md-2">
                         <div class="text-center">
-                            <h3 class="text-primary">{{ mca['total_cases'] if mca and 'total_cases' in mca else 0 }}</h3>
-                            <p class="text-muted">Total Cases</p>
+                            <div class="h3 text-success">{{ mca.monthly_analysis.ytd_stats.cases }}</div>
+                            <small class="text-muted">Total Cases</small>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <div class="text-center">
-                            <h3 class="text-success">{{ "%.1f"|format(mca['total_anes_time']) if mca and 'total_anes_time' in mca else 0 }}</h3>
-                            <p class="text-muted">Total Anesthesia Time (min)</p>
+                            <div class="h3 text-success">{{ "{:,.0f}".format(mca.monthly_analysis.ytd_stats.total_time) }}</div>
+                            <small class="text-muted">Total Time</small>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <div class="text-center">
-                            <h3 class="text-info">{{ "%.1f"|format(mca['total_anes_units']) if mca and 'total_anes_units' in mca else 0 }}</h3>
-                            <p class="text-muted">Total Anesthesia Units</p>
+                            <div class="h3 text-success">{{ "{:,.1f}".format(mca.monthly_analysis.ytd_stats.total_asmg_units) }}</div>
+                            <small class="text-muted">Total ASMG Units</small>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <div class="text-center">
-                            <h3 class="text-warning">{{ "%.1f"|format(mca['total_asmg_units']) if mca and 'total_asmg_units' in mca else 0 }}</h3>
-                            <p class="text-muted">Total ASMG Units</p>
+                            <div class="h3 text-success">{{ "{:,.0f}".format(mca.monthly_analysis.ytd_stats.total_med_units) }}</div>
+                            <small class="text-muted">Total Medical Units</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-center">
+                            <div class="h3 text-success">{{ mca.regional_anesthesia.total_regional_cases if mca and 'regional_anesthesia' in mca and mca['regional_anesthesia'] and 'total_regional_cases' in mca['regional_anesthesia'] else 0 }}</div>
+                            <small class="text-muted">Regional Cases</small>
                         </div>
                     </div>
                 </div>
-
-
-
-                <!-- Productivity Analysis -->
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <h6><i class="fas fa-chart-line text-success"></i> Productivity Analysis</h6>
-                        <!-- Year-to-Date -->
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <h6 class="text-primary">Year-to-Date ({{ mca['productivity']['year_to_date']['cases'] if mca and 'productivity' in mca and mca['productivity'] and 'year_to_date' in mca['productivity'] and mca['productivity']['year_to_date'] else 0 }} cases)</h6>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <small class="text-muted">Total Time:</small><br>
-                                        <strong>{{ "%.1f"|format(mca['productivity']['year_to_date']['total_time']) if mca and 'productivity' in mca and mca['productivity'] and 'year_to_date' in mca['productivity'] and mca['productivity']['year_to_date'] else 0 }} min</strong>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <small class="text-muted">ASMG Units:</small><br>
-                                        <strong>{{ "%.1f"|format(mca['productivity']['year_to_date']['total_asmg_units']) if mca and 'productivity' in mca and mca['productivity'] and 'year_to_date' in mca['productivity'] and mca['productivity']['year_to_date'] else 0 }}</strong>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Monthly Productivity -->
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <h6 class="text-info">Monthly Productivity (Last 6 Months)</h6>
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th>Month</th>
-                                                <th>Cases</th>
-                                                <th>Time (min)</th>
-                                                <th>ASMG Units</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% if mca and 'productivity' in mca and mca['productivity'] and 'monthly' in mca['productivity'] and mca['productivity']['monthly'] %}
-                                            {% set monthly_items = mca['productivity']['monthly'].items() | list %}
-                                            {% for month, data in monthly_items[:6] %}
-                                            <tr>
-                                                <td>{{ month }}</td>
-                                                <td>{{ data['cases'] }}</td>
-                                                <td>{{ "%.1f"|format(data['total_time']) }}</td>
-                                                <td>{{ "%.1f"|format(data['total_asmg_units']) }}</td>
-                                            </tr>
-                                            {% endfor %}
-                                            {% endif %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Weekly Productivity -->
-                        <div class="row">
-                            <div class="col-12">
-                                <h6 class="text-warning">Weekly Productivity (Last 4 Weeks)</h6>
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th>Week</th>
-                                                <th>Cases</th>
-                                                <th>Time (min)</th>
-                                                <th>ASMG Units</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% if mca and 'productivity' in mca and mca['productivity'] and 'weekly' in mca['productivity'] and mca['productivity']['weekly'] %}
-                                            {% set weekly_items = mca['productivity']['weekly'].items() | list %}
-                                            {% for week, data in weekly_items[:4] %}
-                                            <tr>
-                                                <td>{{ week }}</td>
-                                                <td>{{ data['cases'] }}</td>
-                                                <td>{{ "%.1f"|format(data['total_time']) }}</td>
-                                                <td>{{ "%.1f"|format(data['total_asmg_units']) }}</td>
-                                            </tr>
-                                            {% endfor %}
-                                            {% endif %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-            </div>
-        </div>
-    </div>
-
-                <!-- Regional Anesthesia Analysis -->
-                <div class="row mb-4">
-                    <div class="col-12">
-                        <h6><i class="fas fa-syringe text-danger"></i> Regional Anesthesia Analysis</h6>
-                        <div class="row">
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <h4 class="text-danger">{{ mca['regional_anesthesia']['total_regional_cases'] if mca and 'regional_anesthesia' in mca and mca['regional_anesthesia'] and 'total_regional_cases' in mca['regional_anesthesia'] else 0 }}</h4>
-                                    <p class="text-muted">Regional Cases</p>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <h4 class="text-danger">{{ "%.1f"|format(mca['regional_anesthesia']['percentage_of_total']) if mca and 'regional_anesthesia' in mca and mca['regional_anesthesia'] and 'percentage_of_total' in mca['regional_anesthesia'] else 0 }}%</h4>
-                                    <p class="text-muted">% of Total Cases</p>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <h4 class="text-danger">{{ "%.1f"|format(mca['regional_anesthesia']['total_med_units']) if mca and 'regional_anesthesia' in mca and mca['regional_anesthesia'] and 'total_med_units' in mca['regional_anesthesia'] else 0 }}</h4>
-                                    <p class="text-muted">Total Medical Units</p>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <h4 class="text-danger">{{ "%.1f"|format(mca['regional_anesthesia']['average_med_units_per_case']) if mca and 'regional_anesthesia' in mca and mca['regional_anesthesia'] and 'average_med_units_per_case' in mca['regional_anesthesia'] else 0 }}</h4>
-                                    <p class="text-muted">Avg Med Units/Case</p>
-            </div>
             </div>
         </div>
     </div>
 </div>
 
-                <!-- CPT Code Analysis -->
-                <div class="row">
-                    <div class="col-12">
-                        <h6><i class="fas fa-code text-info"></i> CPT Code Analysis</h6>
-<div class="row">
-                            <div class="col-md-6">
-                                <h6 class="text-info">Most Common CPT Codes</h6>
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th>CPT Code</th>
-                                                <th>Frequency</th>
-                                                <th>Avg Time (min)</th>
-                                                <th>Avg Anes Units</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% if mca and 'cpt_analysis' in mca and mca['cpt_analysis'] and 'most_common' in mca['cpt_analysis'] and mca['cpt_analysis']['most_common'] %}
-                                            {% for cpt, freq in mca['cpt_analysis']['most_common'][:5] %}
-                                            <tr>
-                                                <td><strong>{{ cpt }}</strong></td>
-                                                <td>{{ freq }}</td>
-                                                <td>{{ "%.1f"|format(mca['cpt_analysis']['cpt_details'][cpt]['average_time']) if mca['cpt_analysis']['cpt_details'][cpt] else 0 }}</td>
-                                                <td>{{ "%.1f"|format(mca['cpt_analysis']['cpt_details'][cpt]['average_anes_units']) if mca['cpt_analysis']['cpt_details'][cpt] else 0 }}</td>
-                                            </tr>
-                                            {% endfor %}
-                                            {% endif %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="text-center">
-                                    <h4 class="text-info">{{ mca['cpt_analysis']['total_unique_cpt_codes'] if mca and 'cpt_analysis' in mca and mca['cpt_analysis'] and 'total_unique_cpt_codes' in mca['cpt_analysis'] else 0 }}</h4>
-                                    <p class="text-muted">Unique CPT Codes</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+<!-- Weekly Analysis -->
+{% if mca.weekly_analysis %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar-week"></i> Weekly Performance (Current Year)
+                </h5>
             </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Week</th>
+                                <th>Cases</th>
+                                <th>Total Time</th>
+                                <th>Total ASMG Units</th>
+                                <th>Avg Time/Case</th>
+                                <th>Avg ASMG Units/Case</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for week in range(1, mca.weekly_analysis|length + 1) %}
+                            {% set current = mca.weekly_analysis[week] %}
+                            <tr>
+                                <td><strong>{{ week }}</strong></td>
+                                <td>{{ current.cases }}</td>
+                                <td>{{ "{:,.0f}".format(current.total_time) }}</td>
+                                <td>{{ "{:,.1f}".format(current.total_asmg_units) }}</td>
+                                <td>{{ "{:.1f}".format(current.total_time / current.cases) if current.cases > 0 else 0 }}</td>
+                                <td>{{ "{:.1f}".format(current.total_asmg_units / current.cases) if current.cases > 0 else 0 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 </div>
+{% endif %}
 
+<!-- Monthly Analysis -->
+{% if mca.monthly_analysis %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar"></i> Monthly Performance (Current Year)
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Cases</th>
+                                <th>Total Time</th>
+                                <th>Total ASMG Units</th>
+                                <th>Avg Time/Case</th>
+                                <th>Avg ASMG Units/Case</th>
+                                <th>vs Historical Avg</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for month, current in mca.monthly_analysis.monthly_stats[mca.monthly_analysis.current_year].items() %}
+                            {% set historical = mca.monthly_analysis.monthly_averages.get(month, {}) %}
+                            <tr {% if month == mca.monthly_analysis.current_month %}class="table-primary"{% endif %}>
+                                <td><strong>{{ month|month_name }}</strong></td>
+                                <td>{{ current.cases }}</td>
+                                <td>{{ "{:,.0f}".format(current.total_time) }}</td>
+                                <td>{{ "{:,.1f}".format(current.total_asmg_units) }}</td>
+                                <td>{{ "{:.1f}".format(current.total_time / current.cases) if current.cases > 0 else 0 }}</td>
+                                <td>{{ "{:.1f}".format(current.total_asmg_units / current.cases) if current.cases > 0 else 0 }}</td>
+                                <td>
+                                    {% if historical.get('avg_cases', 0) > 0 %}
+                                        {% set diff = ((current.cases - historical.get('avg_cases', 0)) / historical.get('avg_cases', 0)) * 100 %}
+                                        <span class="badge {% if diff > 0 %}badge-success{% elif diff < 0 %}badge-danger{% else %}badge-secondary{% endif %}">
+                                            {{ "{:+.1f}%".format(diff) }}
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
+<!-- Year-over-Year Analysis -->
+{% if mca.yearly_analysis %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar-alt"></i> Year-over-Year Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Year</th>
+                                <th>Cases</th>
+                                <th>Total Time</th>
+                                <th>Total ASMG Units</th>
+                                <th>Avg Time/Case</th>
+                                <th>Avg ASMG Units/Case</th>
+                                {% if mca.yearly_analysis.yoy_growth %}
+                                <th>YoY Growth (Cases)</th>
+                                <th>YoY Growth (ASMG Units)</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for year in mca.yearly_analysis.years_with_data|sort %}
+                            <tr {% if year == mca.yearly_analysis.current_year %}class="table-primary"{% endif %}>
+                                <td><strong>{{ year }}</strong></td>
+                                <td>{{ mca.yearly_analysis.yearly_stats[year].cases }}</td>
+                                <td>{{ "{:,.0f}".format(mca.yearly_analysis.yearly_stats[year].total_time) }}</td>
+                                <td>{{ "{:,.1f}".format(mca.yearly_analysis.yearly_stats[year].total_asmg_units) }}</td>
+                                <td>{{ "{:.1f}".format(mca.yearly_analysis.yearly_stats[year].avg_time_per_case) }}</td>
+                                <td>{{ "{:.1f}".format(mca.yearly_analysis.yearly_stats[year].avg_asmg_units_per_case) }}</td>
+                                {% if mca.yearly_analysis.yoy_growth and year in mca.yearly_analysis.yoy_growth %}
+                                <td>
+                                    {% set growth = mca.yearly_analysis.yoy_growth[year].cases_growth %}
+                                    <span class="badge {% if growth > 0 %}badge-success{% elif growth < 0 %}badge-danger{% else %}badge-secondary{% endif %}">
+                                        {{ "{:+.1f}%".format(growth) if growth != 999999 else "N/A" }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% set growth = mca.yearly_analysis.yoy_growth[year].asmg_units_growth %}
+                                    <span class="badge {% if growth > 0 %}badge-success{% elif growth < 0 %}badge-danger{% else %}badge-secondary{% endif %}">
+                                        {{ "{:+.1f}%".format(growth) if growth != 999999 else "N/A" }}
+                                    </span>
+                                </td>
+                                {% else %}
+                                <td>-</td>
+                                <td>-</td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Case Extremes -->
 <div class="row mb-4">
@@ -294,221 +296,6 @@
         </div>
     </div>
 </div>
-
-<!-- Year-over-Year Analysis -->
-{% if mca.yearly_analysis %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-calendar-alt"></i> Year-over-Year Analysis
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Year</th>
-                                <th>Cases</th>
-                                <th>Total Time</th>
-                                <th>Total ASMG Units</th>
-                                <th>Avg Time/Case</th>
-                                <th>Avg ASMG Units/Case</th>
-                                {% if mca.yearly_analysis.yoy_growth %}
-                                <th>YoY Growth (Cases)</th>
-                                <th>YoY Growth (ASMG Units)</th>
-                                {% endif %}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for year in mca.yearly_analysis.years_with_data|sort %}
-                            <tr {% if year == mca.yearly_analysis.current_year %}class="table-primary"{% endif %}>
-                                <td><strong>{{ year }}</strong></td>
-                                <td>{{ mca.yearly_analysis.yearly_stats[year].cases }}</td>
-                                <td>{{ "{:,.0f}".format(mca.yearly_analysis.yearly_stats[year].total_time) }}</td>
-                                <td>{{ "{:,.1f}".format(mca.yearly_analysis.yearly_stats[year].total_asmg_units) }}</td>
-                                <td>{{ "{:.1f}".format(mca.yearly_analysis.yearly_stats[year].avg_time_per_case) }}</td>
-                                <td>{{ "{:.1f}".format(mca.yearly_analysis.yearly_stats[year].avg_asmg_units_per_case) }}</td>
-                                {% if mca.yearly_analysis.yoy_growth and year in mca.yearly_analysis.yoy_growth %}
-                                <td>
-                                    {% set growth = mca.yearly_analysis.yoy_growth[year].cases_growth %}
-                                    <span class="badge {% if growth > 0 %}badge-success{% elif growth < 0 %}badge-danger{% else %}badge-secondary{% endif %}">
-                                        {{ "{:+.1f}%".format(growth) if growth != 999999 else "N/A" }}
-                                    </span>
-                                </td>
-                                <td>
-                                    {% set growth = mca.yearly_analysis.yoy_growth[year].asmg_units_growth %}
-                                    <span class="badge {% if growth > 0 %}badge-success{% elif growth < 0 %}badge-danger{% else %}badge-secondary{% endif %}">
-                                        {{ "{:+.1f}%".format(growth) if growth != 999999 else "N/A" }}
-                                    </span>
-                                </td>
-                                {% else %}
-                                <td>-</td>
-                                <td>-</td>
-                                {% endif %}
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Seasonal Analysis -->
-{% if mca.seasonal_analysis %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-snowflake"></i> Seasonal Performance
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    {% for season in ['Winter', 'Spring', 'Summer', 'Fall'] %}
-                    {% if season in mca.seasonal_analysis %}
-                    <div class="col-md-3">
-                        <div class="card border-primary">
-                            <div class="card-body text-center">
-                                <h5 class="card-title">{{ season }}</h5>
-                                <div class="row">
-                                    <div class="col-6">
-                                        <small class="text-muted">Cases</small>
-                                        <div class="h4">{{ mca.seasonal_analysis[season].cases }}</div>
-                                    </div>
-                                    <div class="col-6">
-                                        <small class="text-muted">Avg ASMG/Case</small>
-                                        <div class="h4">{{ "{:.1f}".format(mca.seasonal_analysis[season].avg_asmg_units_per_case) }}</div>
-                                    </div>
-                                </div>
-                                <div class="row mt-2">
-                                    <div class="col-6">
-                                        <small class="text-muted">Total Time</small>
-                                        <div>{{ "{:,.0f}".format(mca.seasonal_analysis[season].total_time) }}</div>
-                                    </div>
-                                    <div class="col-6">
-                                        <small class="text-muted">Total ASMG</small>
-                                        <div>{{ "{:,.1f}".format(mca.seasonal_analysis[season].total_asmg_units) }}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Monthly Analysis -->
-{% if mca.monthly_analysis %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-calendar"></i> Monthly Performance (Current Year)
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Month</th>
-                                <th>Cases</th>
-                                <th>Total Time</th>
-                                <th>Total ASMG Units</th>
-                                <th>Avg Time/Case</th>
-                                <th>Avg ASMG Units/Case</th>
-                                <th>vs Historical Avg</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for month in range(1, 13) %}
-                            {% if mca.monthly_analysis.current_year in mca.monthly_analysis.monthly_stats and month in mca.monthly_analysis.monthly_stats[mca.monthly_analysis.current_year] %}
-                            {% set current = mca.monthly_analysis.monthly_stats[mca.monthly_analysis.current_year][month] %}
-                            {% set historical = mca.monthly_analysis.monthly_averages[month] %}
-                            <tr {% if month == mca.monthly_analysis.current_month %}class="table-primary"{% endif %}>
-                                <td><strong>{{ month|month_name }}</strong></td>
-                                <td>{{ current.cases }}</td>
-                                <td>{{ "{:,.0f}".format(current.total_time) }}</td>
-                                <td>{{ "{:,.1f}".format(current.total_asmg_units) }}</td>
-                                <td>{{ "{:.1f}".format(current.total_time / current.cases) if current.cases > 0 else 0 }}</td>
-                                <td>{{ "{:.1f}".format(current.total_asmg_units / current.cases) if current.cases > 0 else 0 }}</td>
-                                <td>
-                                    {% if historical.avg_cases > 0 %}
-                                        {% set diff = ((current.cases - historical.avg_cases) / historical.avg_cases) * 100 %}
-                                        <span class="badge {% if diff > 0 %}badge-success{% elif diff < 0 %}badge-danger{% else %}badge-secondary{% endif %}">
-                                            {{ "{:+.1f}%".format(diff) }}
-                                        </span>
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endif %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Year-to-Date Summary -->
-{% if mca.monthly_analysis and mca.monthly_analysis.ytd_stats %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card border-success">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0">
-                    <i class="fas fa-trophy"></i> Year-to-Date Summary ({{ mca.monthly_analysis.current_year }})
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <div class="h3 text-success">{{ mca.monthly_analysis.ytd_stats.cases }}</div>
-                            <small class="text-muted">Total Cases</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <div class="h3 text-success">{{ "{:,.0f}".format(mca.monthly_analysis.ytd_stats.total_time) }}</div>
-                            <small class="text-muted">Total Time</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <div class="h3 text-success">{{ "{:,.1f}".format(mca.monthly_analysis.ytd_stats.total_asmg_units) }}</div>
-                            <small class="text-muted">Total ASMG Units</small>
-                </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <div class="h3 text-success">{{ "{:,.0f}".format(mca.monthly_analysis.ytd_stats.total_med_units) }}</div>
-                            <small class="text-muted">Total Medical Units</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
 
 {% endblock %}
 
