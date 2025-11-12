@@ -7,8 +7,22 @@ from sqlalchemy import and_
 logger = logging.getLogger(__name__)
 
 class CaseGrouper:
-    def __init__(self, session):
+    """
+    Groups charge transactions into master cases by patient ticket number.
+
+    Implements batch processing to handle large datasets efficiently.
+    """
+
+    def __init__(self, session, batch_size=1000):
+        """
+        Initialize the CaseGrouper.
+
+        Args:
+            session: SQLAlchemy session
+            batch_size: Number of transactions to process in each batch (default: 1000)
+        """
         self.session = session
+        self.batch_size = batch_size
 
     def group_transactions_into_cases(self):
         """
@@ -17,19 +31,41 @@ class CaseGrouper:
         - date of service
         - CPT code
         - initial start time
-        
-        This process is idempotent and can be re-run.
-        """
-        # Step 1: Get all transactions and group them by the case key criteria
-        transactions = self.session.query(ChargeTransaction).all()
 
-        # Step 2: Group transactions by ticket number (patient identifier)
-        case_groups = self._group_transactions_by_case_criteria(transactions)
+        This process is idempotent and can be re-run.
+        Uses batch processing to handle large datasets efficiently.
+        """
+        # Step 1: Get total count of transactions
+        total_transactions = self.session.query(ChargeTransaction).count()
+        logger.info(f"Processing {total_transactions} transactions in batches of {self.batch_size}")
+
+        # Step 2: Process transactions in batches
+        case_groups = {}
+        offset = 0
+
+        while offset < total_transactions:
+            # Fetch batch of transactions
+            batch = self.session.query(ChargeTransaction).offset(offset).limit(self.batch_size).all()
+
+            if not batch:
+                break
+
+            # Group this batch
+            batch_groups = self._group_transactions_by_case_criteria(batch)
+
+            # Merge with existing groups
+            for case_key, transactions in batch_groups.items():
+                if case_key not in case_groups:
+                    case_groups[case_key] = []
+                case_groups[case_key].extend(transactions)
+
+            offset += self.batch_size
+            logger.info(f"Processed {min(offset, total_transactions)}/{total_transactions} transactions")
 
         # Step 3: Create or update MasterCase records and link transactions
         self._create_and_link_master_cases(case_groups)
-        
-        logger.info(f"Successfully grouped {len(transactions)} transactions into {len(case_groups)} cases")
+
+        logger.info(f"Successfully grouped {total_transactions} transactions into {len(case_groups)} cases")
 
     def _group_transactions_by_case_criteria(self, transactions):
         """
@@ -131,19 +167,28 @@ class CaseGrouper:
             date_of_service = None
             if all_dates:
                 try:
-                    # Filter out invalid date strings
+                    # Filter out invalid dates (None, empty, or invalid date objects)
                     valid_dates = []
-                    for date_str in all_dates:
-                        # Skip empty, None, or whitespace-only strings
-                        if not date_str or str(date_str).strip() == '' or str(date_str).lower() in ['nan', 'none']:
+                    for date_val in all_dates:
+                        # Skip None or invalid values
+                        if date_val is None:
                             continue
-                        
-                        try:
-                            date_obj = datetime.strptime(str(date_str).strip(), '%m/%d/%y').date()
-                            valid_dates.append(date_obj)
-                        except ValueError:
-                            logger.warning(f"Invalid date format for case {patient_ticket}: {date_str}")
-                    
+
+                        # Handle both date objects (new schema) and strings (old schema)
+                        if isinstance(date_val, (date, datetime)):
+                            # Already a date object
+                            valid_dates.append(date_val.date() if isinstance(date_val, datetime) else date_val)
+                        elif isinstance(date_val, str):
+                            # String format - try to parse
+                            date_str = date_val.strip()
+                            if date_str.lower() in ['', 'nan', 'none']:
+                                continue
+                            try:
+                                date_obj = datetime.strptime(date_str, '%m/%d/%y').date()
+                                valid_dates.append(date_obj)
+                            except ValueError:
+                                logger.warning(f"Invalid date format for case {patient_ticket}: {date_str}")
+
                     if valid_dates:
                         date_of_service = min(valid_dates)
                     else:

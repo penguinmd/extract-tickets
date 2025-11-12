@@ -178,7 +178,7 @@ class CompensationAnalyzer:
     def get_charge_transactions(self, sort_by='phys_ticket_ref', sort_order='asc') -> pd.DataFrame:
         """
         Fetch all charge transactions with sorting.
-        
+
         Args:
             sort_by (str): Column to sort by.
             sort_order (str): 'asc' or 'desc'.
@@ -197,8 +197,15 @@ class CompensationAnalyzer:
             if sort_order.lower() not in ['asc', 'desc']:
                 sort_order = 'asc'
 
-            query = f"SELECT * FROM charge_transactions ORDER BY {sort_by} {sort_order.upper()}"
-            df = pd.read_sql_query(query, self.engine)
+            # Use SQLAlchemy's order_by for safe query construction
+            query = self.session.query(ChargeTransaction)
+            sort_column = getattr(ChargeTransaction, sort_by)
+            if sort_order.lower() == 'desc':
+                query = query.order_by(sort_column.desc())
+            else:
+                query = query.order_by(sort_column.asc())
+
+            df = pd.read_sql(query.statement, self.engine)
             
             if not df.empty:
                 possible_numeric_cols = ['billed_amount', 'paid_amount', 'time_min', 'anes_base_units', 'med_base_units', 'other_units', 'chg_amt']

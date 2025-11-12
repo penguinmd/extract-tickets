@@ -1,4 +1,5 @@
 import os
+import secrets
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from werkzeug.utils import secure_filename
 from pathlib import Path
@@ -16,7 +17,8 @@ ALLOWED_EXTENSIONS = {'pdf'}
 # Initialize Flask App
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.secret_key = 'supersecretkey'  # Required for flashing messages
+# Use environment variable for secret key, or generate a random one
+app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 
 # Custom template filter for month names
 @app.template_filter('month_name')
@@ -110,16 +112,19 @@ def analysis():
     """Analysis and charts page."""
     try:
         analyzer = CompensationAnalyzer()
-        
+
         # Generate plots and save them
         reports_dir = Path('static/reports')
         reports_dir.mkdir(exist_ok=True)
-        
-        # Generate charts (temporarily commented out to debug)
-        # analyzer.plot_income_trend(save_path=str(reports_dir / 'income_trend.png'))
-        # analyzer.plot_seasonal_trends(save_path=str(reports_dir / 'seasonal_trends.png'))
-        # analyzer.plot_procedure_profitability(save_path=str(reports_dir / 'procedure_profitability.png'))
-        # analyzer.plot_payer_performance(save_path=str(reports_dir / 'payer_performance.png'))
+
+        # Generate charts
+        try:
+            analyzer.plot_income_trend(save_path=str(reports_dir / 'income_trend.png'))
+            analyzer.plot_seasonal_trends(save_path=str(reports_dir / 'seasonal_trends.png'))
+            analyzer.plot_procedure_profitability(save_path=str(reports_dir / 'procedure_profitability.png'))
+            analyzer.plot_payer_performance(save_path=str(reports_dir / 'payer_performance.png'))
+        except Exception as chart_error:
+            app.logger.warning(f"Error generating charts: {str(chart_error)}")
 
         # Get master case analysis
         master_case_analysis = analyzer.get_master_case_analysis()
@@ -246,8 +251,8 @@ def batch_upload():
     except Exception as e:
         app.logger.error(f"Batch upload error: {str(e)}")
         flash(f'Error during batch processing: {str(e)}', 'danger')
-    
-        return redirect(url_for('index'))
+
+    return redirect(url_for('index'))
 
 @app.route('/delete_report/<int:summary_id>', methods=['POST'])
 def delete_report(summary_id):
