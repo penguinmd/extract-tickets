@@ -54,7 +54,7 @@ A comprehensive web-based system for analyzing medical compensation reports with
    ```
 
 6. **Access the web interface**
-   Open http://localhost:5003 in your browser
+   Open http://localhost:8888 in your browser
 
 ## 📊 Usage
 

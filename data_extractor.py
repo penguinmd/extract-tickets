@@ -561,47 +561,10 @@ class MedicalReportExtractor:
                         result[field] = ''
             
             return result
-            
+
         except Exception as e:
             logger.error(f"Error parsing charge transaction line: {str(e)}")
             return {}
-
-    # def _anonymize_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-    #     """Remove patient names and other sensitive information from DataFrame."""
-    #     if df.empty:
-    #         return df
-    #     
-    #     # List of column names that might contain patient information
-    #     sensitive_cols = ['Patient Name']
-    #     
-    #     for col in sensitive_cols:
-    #         if col in df.columns:
-    #             # Scramble the names
-    #             df[col] = df[col].apply(self._scramble_name)
-    #     
-    #     return df
-
-    # def _scramble_name(self, name: str) -> str:
-    #     """
-    #     Scrambles the middle part of a name for anonymization.
-    #     Keeps the first and last letters of each word.
-    #     """
-    #     if not name:
-    #         return ""
-    #     
-    #     words = name.split()
-    #     scrambled_words = []
-    #     for word in words:
-    #         if len(word) > 2:
-    #             middle = list(word[1:-1])
-    #             import random
-    #             random.shuffle(middle)
-    #             scrambled_word = word[0] + "".join(middle) + word[-1]
-    #             scrambled_words.append(scrambled_word)
-    #         else:
-    #             scrambled_words.append(word)
-    #     
-    #     return " ".join(scrambled_words)
 
 def test_extractor():
     """Test function to verify the extractor works."""

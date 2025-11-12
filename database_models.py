@@ -2,7 +2,7 @@
 Database models for the Anesthesia Compensation & Practice Analysis Pipeline.
 """
 
-from sqlalchemy import create_engine, Column, Integer, String, Date, REAL, ForeignKey, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Date, REAL, ForeignKey, DateTime, Index
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from datetime import datetime
 import os
@@ -59,11 +59,6 @@ class ASMGTemporalRules(Base):
     description = Column(String, nullable=True)  # Optional description of the rule
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Ensure effective_date is unique
-    # __table_args__ = (
-    #     # Unique constraint on effective_date to prevent overlapping rules
-    # )
 
 class MasterCase(Base):
     """A master case that groups multiple charge transactions by patient ticket number."""
@@ -93,21 +88,33 @@ class MasterCase(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Create a unique constraint on patient_ticket_number since each ticket represents one patient case
-    # __table_args__ = (
-    #     # Unique constraint on patient ticket number - each ticket represents one patient case
-    #     # This allows multiple CPT codes and time periods within the same case
-    # )
-
+    # Relationships
     charge_transactions = relationship("ChargeTransaction", back_populates="master_case")
 
+# Define indexes for master_cases
+Index('idx_mc_patient_ticket', MasterCase.patient_ticket_number)
+Index('idx_mc_date_service', MasterCase.date_of_service)
+
 class ChargeTransaction(Base):
-    """Table to store charge transaction data from ChargeTransaction Report."""
+    """Table to store charge transaction data from ChargeTransaction Report.
+
+    Field abbreviations:
+    - anes: Anesthesia
+    - med: Medical
+    - chg: Charge
+    - amt: Amount
+    - grp: Group
+    - sb: Sub
+    - pl: Pool
+    - min: Minutes
+    """
     __tablename__ = 'charge_transactions'
-    
+
     id = Column(Integer, primary_key=True)
     summary_id = Column(Integer, ForeignKey('monthly_summary.id'), nullable=False)
     master_case_id = Column(Integer, ForeignKey('master_cases.id'))
+
+    # String identifiers and codes
     phys_ticket_ref = Column(String, nullable=True)
     note = Column(String, nullable=True)
     original_chg_mo = Column(String, nullable=True)
@@ -115,31 +122,43 @@ class ChargeTransaction(Base):
     serv_type = Column(String, nullable=True)
     cpt_code = Column(String, nullable=True)
     pay_code = Column(String, nullable=True)
-    start_time = Column(String, nullable=True)
-    stop_time = Column(String, nullable=True)
+    start_time = Column(String, nullable=True)  # Time format: HH:MM
+    stop_time = Column(String, nullable=True)   # Time format: HH:MM
     ob_case_pos = Column(String, nullable=True)
-    date_of_service = Column(String, nullable=True)
-    date_of_post = Column(String, nullable=True)
-    split_percent = Column(String, nullable=True)
-    anes_time_min = Column(String, nullable=True)
-    anes_base_units = Column(String, nullable=True)
-    med_base_units = Column(String, nullable=True)
-    other_units = Column(String, nullable=True)
-    chg_amt = Column(String, nullable=True)
-    sub_pool_percent = Column(String, nullable=True)
-    sb_pl_time_min = Column(String, nullable=True)
-    anes_base = Column(String, nullable=True)
-    med_base = Column(String, nullable=True)
-    grp_pool_percent = Column(String, nullable=True)
-    gr_pl_time_min = Column(String, nullable=True)
-    grp_anes_base = Column(String, nullable=True)
-    grp_med_base = Column(String, nullable=True)
-    
+
+    # Date fields
+    date_of_service = Column(Date, nullable=True)
+    date_of_post = Column(Date, nullable=True)
+
+    # Numeric fields - using REAL for proper numeric operations
+    split_percent = Column(REAL, nullable=True)
+    anes_time_min = Column(REAL, nullable=True)      # Anesthesia time in minutes
+    anes_base_units = Column(REAL, nullable=True)    # Anesthesia base units
+    med_base_units = Column(REAL, nullable=True)     # Medical base units
+    other_units = Column(REAL, nullable=True)        # Other units
+    chg_amt = Column(REAL, nullable=True)            # Charge amount
+    sub_pool_percent = Column(REAL, nullable=True)   # Sub pool percentage
+    sb_pl_time_min = Column(REAL, nullable=True)     # Sub pool time in minutes
+    anes_base = Column(REAL, nullable=True)          # Anesthesia base
+    med_base = Column(REAL, nullable=True)           # Medical base
+    grp_pool_percent = Column(REAL, nullable=True)   # Group pool percentage
+    gr_pl_time_min = Column(REAL, nullable=True)     # Group pool time in minutes
+    grp_anes_base = Column(REAL, nullable=True)      # Group anesthesia base
+    grp_med_base = Column(REAL, nullable=True)       # Group medical base
+
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # Relationships
     summary = relationship("MonthlySummary", back_populates="charge_transactions")
     master_case = relationship("MasterCase", back_populates="charge_transactions")
+
+# Define indexes for charge_transactions
+Index('idx_ct_phys_ticket', ChargeTransaction.phys_ticket_ref)
+Index('idx_ct_date_service', ChargeTransaction.date_of_service)
+Index('idx_ct_cpt_code', ChargeTransaction.cpt_code)
+
+# Define index for monthly_summary
+Index('idx_ms_pay_period', MonthlySummary.pay_period_end_date)
 
 def create_database():
     """Create all tables in the database."""

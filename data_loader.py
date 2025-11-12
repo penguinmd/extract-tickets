@@ -121,7 +121,7 @@ class DataLoader:
             return None
     
     def _insert_charge_transactions(self, df: pd.DataFrame, summary_id: int) -> bool:
-        """Insert or update charge transaction data."""
+        """Insert or update charge transaction data with proper type conversions."""
         try:
             upserted_count = 0
             for _, row in df.iterrows():
@@ -131,44 +131,67 @@ class DataLoader:
                         logger.warning(f"Skipping transaction with invalid ticket reference: {case_id}")
                         continue
 
-                    # Clean and validate data fields
-                    def clean_field(value):
-                        cleaned = str(value).strip() if value is not None else ''
-                        return cleaned if cleaned.lower() not in ['nan', 'none', ''] else ''
+                    # Helper functions for type conversion
+                    def clean_string_field(value):
+                        """Convert to string, return empty string for invalid values."""
+                        if value is None or str(value).strip().lower() in ['', 'nan', 'none']:
+                            return ''
+                        return str(value).strip()
 
+                    def clean_numeric_field(value):
+                        """Convert to float, return None for invalid values."""
+                        if value is None or str(value).strip().lower() in ['', 'nan', 'none']:
+                            return None
+                        try:
+                            return float(str(value).replace(',', ''))
+                        except (ValueError, TypeError):
+                            return None
+
+                    def clean_date_field(value):
+                        """Convert M/D/YY string to date object, return None for invalid values."""
+                        if value is None or str(value).strip().lower() in ['', 'nan', 'none']:
+                            return None
+                        try:
+                            return datetime.strptime(str(value).strip(), '%m/%d/%y').date()
+                        except (ValueError, TypeError):
+                            return None
+
+                    # Build record with proper types
                     record_data = {
                         'summary_id': summary_id,
-                        'phys_ticket_ref': clean_field(row.get('Phys Ticket Ref#', '')),
-                        'note': clean_field(row.get('Note', '')),
-                        'original_chg_mo': clean_field(row.get('Original Chg Mo', '')),
-                        'site_code': clean_field(row.get('Site Code', '')),
-                        'serv_type': clean_field(row.get('Serv Type', '')),
-                        'cpt_code': clean_field(row.get('CPT Code', '')),
-                        'pay_code': clean_field(row.get('Pay Code', '')),
-                        'start_time': clean_field(row.get('Start Time', '')),
-                        'stop_time': clean_field(row.get('Stop Time', '')),
-                        'ob_case_pos': clean_field(row.get('OB Case Pos', '')),
-                        'date_of_service': clean_field(row.get('Date of Service', '')),
-                        'date_of_post': clean_field(row.get('Date of Post', '')),
-                        'split_percent': clean_field(row.get('Split %', '')),
-                        'anes_time_min': clean_field(row.get('Anes Time (Min)', '')),
-                        'anes_base_units': clean_field(row.get('Anes Base Units', '')),
-                        'med_base_units': clean_field(row.get('Med Base Units', '')),
-                        'other_units': clean_field(row.get('Other Units', '')),
-                        'chg_amt': clean_field(row.get('Chg Amt', '')),
-                        'sub_pool_percent': clean_field(row.get('Sub Pool %', '')),
-                        'sb_pl_time_min': clean_field(row.get('Sb Pl Time (Min)', '')),
-                        'anes_base': clean_field(row.get('Anes Base', '')),
-                        'med_base': clean_field(row.get('Med Base', '')),
-                        'grp_pool_percent': clean_field(row.get('Grp Pool %', '')),
-                        'gr_pl_time_min': clean_field(row.get('Gr Pl Time (Min)', '')),
-                        'grp_anes_base': clean_field(row.get('Anes Base', '')),
-                        'grp_med_base': clean_field(row.get('Med Base', '')),
+                        # String fields
+                        'phys_ticket_ref': clean_string_field(row.get('Phys Ticket Ref#', '')),
+                        'note': clean_string_field(row.get('Note', '')),
+                        'original_chg_mo': clean_string_field(row.get('Original Chg Mo', '')),
+                        'site_code': clean_string_field(row.get('Site Code', '')),
+                        'serv_type': clean_string_field(row.get('Serv Type', '')),
+                        'cpt_code': clean_string_field(row.get('CPT Code', '')),
+                        'pay_code': clean_string_field(row.get('Pay Code', '')),
+                        'start_time': clean_string_field(row.get('Start Time', '')),
+                        'stop_time': clean_string_field(row.get('Stop Time', '')),
+                        'ob_case_pos': clean_string_field(row.get('OB Case Pos', '')),
+                        # Date fields
+                        'date_of_service': clean_date_field(row.get('Date of Service', '')),
+                        'date_of_post': clean_date_field(row.get('Date of Post', '')),
+                        # Numeric fields
+                        'split_percent': clean_numeric_field(row.get('Split %', '')),
+                        'anes_time_min': clean_numeric_field(row.get('Anes Time (Min)', '')),
+                        'anes_base_units': clean_numeric_field(row.get('Anes Base Units', '')),
+                        'med_base_units': clean_numeric_field(row.get('Med Base Units', '')),
+                        'other_units': clean_numeric_field(row.get('Other Units', '')),
+                        'chg_amt': clean_numeric_field(row.get('Chg Amt', '')),
+                        'sub_pool_percent': clean_numeric_field(row.get('Sub Pool %', '')),
+                        'sb_pl_time_min': clean_numeric_field(row.get('Sb Pl Time (Min)', '')),
+                        'anes_base': clean_numeric_field(row.get('Anes Base', '')),
+                        'med_base': clean_numeric_field(row.get('Med Base', '')),
+                        'grp_pool_percent': clean_numeric_field(row.get('Grp Pool %', '')),
+                        'gr_pl_time_min': clean_numeric_field(row.get('Gr Pl Time (Min)', '')),
+                        'grp_anes_base': clean_numeric_field(row.get('Anes Base', '')),
+                        'grp_med_base': clean_numeric_field(row.get('Med Base', '')),
                     }
 
                     # Use a composite key to find the existing transaction
                     # Include start_time AND stop_time to differentiate split cases
-                    # This ensures records with different time ranges aren't merged
                     existing_transaction = self.session.query(ChargeTransaction).filter_by(
                         phys_ticket_ref=case_id,
                         cpt_code=record_data['cpt_code'],
@@ -176,7 +199,7 @@ class DataLoader:
                         start_time=record_data['start_time'],
                         stop_time=record_data['stop_time']
                     ).first()
-                    
+
                     if existing_transaction:
                         # Update the existing record
                         for key, value in record_data.items():
@@ -185,12 +208,12 @@ class DataLoader:
                         # Insert a new record
                         new_transaction = ChargeTransaction(**record_data)
                         self.session.add(new_transaction)
-                    
+
                     upserted_count += 1
                 except Exception as e:
                     logger.warning(f"Error upserting charge transaction row: {str(e)}")
                     continue
-            
+
             logger.info(f"Upserted {upserted_count} charge transactions")
             return True
         except Exception as e:
