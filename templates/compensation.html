@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Compensation Data - Compensation Analysis{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-dollar-sign"></i> Compensation Data
+        </h1>
+    </div>
+</div>
+
+{% if summary_data %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table"></i> Monthly Compensation Summary
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Pay Period End</th>
+                                <th>Gross Pay</th>
+                                <th>Base Salary</th>
+                                <th>Total Commission</th>
+                                <th>Bonus Amount</th>
+                                <th>Source File</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in summary_data %}
+                            <tr>
+                                <td>{{ row.pay_period_end_date or 'N/A' }}</td>
+                                <td class="text-success font-weight-bold">
+                                    {% if row.gross_pay %}
+                                        ${{ "{:,.2f}".format(row.gross_pay) }}
+                                    {% else %}
+                                        $0.00
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if row.base_salary %}
+                                        ${{ "{:,.2f}".format(row.base_salary) }}
+                                    {% else %}
+                                        $0.00
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if row.total_commission %}
+                                        ${{ "{:,.2f}".format(row.total_commission) }}
+                                    {% else %}
+                                        $0.00
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if row.bonus_amount %}
+                                        ${{ "{:,.2f}".format(row.bonus_amount) }}
+                                    {% else %}
+                                        $0.00
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ row.source_file or 'N/A' }}</small>
+                                </td>
+                                <td>
+                                    <form action="{{ url_for('delete_report', summary_id=row.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this report and all its data?');">
+                                        <button type="submit" class="btn btn-danger btn-sm">
+                                            <i class="fas fa-trash-alt"></i> Delete
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Statistics -->
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-primary">Total Reports</h5>
+                <h3 class="text-primary">{{ summary_data|length }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success">Average Gross Pay</h5>
+                <h3 class="text-success">
+                    {% set total_gross = summary_data|selectattr('gross_pay')|map(attribute='gross_pay')|sum %}
+                    {% set count_gross = summary_data|selectattr('gross_pay')|list|length %}
+                    {% if count_gross > 0 %}
+                        ${{ "{:,.0f}".format(total_gross / count_gross) }}
+                    {% else %}
+                        $0
+                    {% endif %}
+                </h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-info">Total Gross Pay</h5>
+                <h3 class="text-info">
+                    {% set total_gross = summary_data|selectattr('gross_pay')|map(attribute='gross_pay')|sum %}
+                    ${{ "{:,.0f}".format(total_gross) }}
+                </h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-warning">Latest Period</h5>
+                <h6 class="text-warning">
+                    {% if summary_data %}
+                        {{ summary_data[0].pay_period_end_date or 'N/A' }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </h6>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                <h4>No Compensation Data Available</h4>
+                <p class="text-muted">Upload some compensation reports to see data here.</p>
+                <a href="{{ url_for('index') }}" class="btn btn-primary">
+                    <i class="fas fa-upload"></i> Upload Reports
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

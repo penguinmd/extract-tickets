@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Ticket Data - Compensation Analysis{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-ticket-alt"></i> Ticket & Transaction Data
+        </h1>
+    </div>
+</div>
+
+{% if transactions_data %}
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-primary">Total Transactions</h5>
+                <h3 class="text-primary">{{ transactions_data|length }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success">Total Billed</h5>
+                <h3 class="text-success">
+                    {% set total_billed = transactions_data|selectattr('billed_amount')|map(attribute='billed_amount')|sum %}
+                    ${{ "{:,.0f}".format(total_billed) }}
+                </h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-info">Unique CPT Codes</h5>
+                <h3 class="text-info">
+                    {% set unique_cpts = transactions_data|map(attribute='cpt_code')|unique|list|length %}
+                    {{ unique_cpts }}
+                </h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-warning">Avg Transaction</h5>
+                <h3 class="text-warning">
+                    {% set total_billed = transactions_data|selectattr('billed_amount')|map(attribute='billed_amount')|sum %}
+                    {% set count = transactions_data|length %}
+                    {% if count > 0 %}
+                        ${{ "{:,.0f}".format(total_billed / count) }}
+                    {% else %}
+                        $0
+                    {% endif %}
+                </h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search and Filter -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <input type="text" id="searchInput" class="form-control" placeholder="Search transactions...">
+    </div>
+    <div class="col-md-3">
+        <select id="serviceFilter" class="form-control">
+            <option value="">All Service Types</option>
+            {% set service_types = transactions_data|map(attribute='serv_type')|unique|list %}
+            {% for service_type in service_types %}
+                <option value="{{ service_type }}">{{ service_type }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select id="insuranceFilter" class="form-control">
+            <option value="">All Insurance Types</option>
+            {% set insurance_types = transactions_data|map(attribute='insurance_carrier')|unique|list %}
+            {% for insurance_type in insurance_types %}
+                <option value="{{ insurance_type }}">{{ insurance_type }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- Transactions Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table"></i> Transaction Details
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="transactionsTable">
+                        <thead>
+                            <tr>
+                                {% macro sortable_header(column, display_name) %}
+                                    <th>
+                                        <a href="{{ url_for('tickets', sort_by=column, sort_order='desc' if sort_by == column and sort_order == 'asc' else 'asc') }}" 
+                                           class="text-decoration-none">
+                                            <span>{{ display_name }}</span>
+                                            {% if sort_by == column %}
+                                                <i class="fas fa-sort-{{ 'up' if sort_order == 'asc' else 'down' }} text-primary"></i>
+                                            {% else %}
+                                                <i class="fas fa-sort text-muted"></i>
+                                            {% endif %}
+                                        </a>
+                                    </th>
+                                {% endmacro %}
+                                
+                                {{ sortable_header('phys_ticket_ref', 'Phys Ticket Ref#') }}
+                                {{ sortable_header('note', 'Note') }}
+                                {{ sortable_header('original_chg_mo', 'Original Chg Mo') }}
+                                {{ sortable_header('site_code', 'Site Code') }}
+                                {{ sortable_header('serv_type', 'Serv Type') }}
+                                {{ sortable_header('cpt_code', 'CPT Code') }}
+                                {{ sortable_header('pay_code', 'Pay Code') }}
+                                {{ sortable_header('start_time', 'Start Time') }}
+                                {{ sortable_header('stop_time', 'Stop Time') }}
+                                {{ sortable_header('ob_case_pos', 'OB Case Pos') }}
+                                {{ sortable_header('date_of_service', 'Date of Service') }}
+                                {{ sortable_header('date_of_post', 'Date of Post') }}
+                                {{ sortable_header('split_percent', 'Split %') }}
+                                {{ sortable_header('anes_time_min', 'Anes Time (Min)') }}
+                                {{ sortable_header('anes_base_units', 'Anes Base Units') }}
+                                {{ sortable_header('med_base_units', 'Med Base Units') }}
+                                {{ sortable_header('other_units', 'Other Units') }}
+                                {{ sortable_header('chg_amt', 'Chg Amt') }}
+                                {{ sortable_header('sub_pool_percent', 'Sub Pool %') }}
+                                {{ sortable_header('sb_pl_time_min', 'Sb Pl Time (Min)') }}
+                                {{ sortable_header('anes_base', 'Anes Base') }}
+                                {{ sortable_header('med_base', 'Med Base') }}
+                                {{ sortable_header('grp_pool_percent', 'Grp Pool %') }}
+                                {{ sortable_header('gr_pl_time_min', 'Gr Pl Time (Min)') }}
+                                {{ sortable_header('grp_anes_base', 'Grp Anes Base') }}
+                                {{ sortable_header('grp_med_base', 'Grp Med Base') }}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in transactions_data %}
+                            <tr>
+                                <td>{{ row.phys_ticket_ref or '' }}</td>
+                                <td>{{ row.note or '' }}</td>
+                                <td>{{ row.original_chg_mo or '' }}</td>
+                                <td>{{ row.site_code or '' }}</td>
+                                <td>{{ row.serv_type or '' }}</td>
+                                <td>{{ row.cpt_code or '' }}</td>
+                                <td>{{ row.pay_code or '' }}</td>
+                                <td>{{ row.start_time or '' }}</td>
+                                <td>{{ row.stop_time or '' }}</td>
+                                <td>{{ row.ob_case_pos or '' }}</td>
+                                <td>{{ row.date_of_service or '' }}</td>
+                                <td>{{ row.date_of_post or '' }}</td>
+                                <td>{{ row.split_percent or '' }}</td>
+                                <td>{{ row.anes_time_min or '' }}</td>
+                                <td>{{ row.anes_base_units or '' }}</td>
+                                <td>{{ row.med_base_units or '' }}</td>
+                                <td>{{ row.other_units or '' }}</td>
+                                <td>{{ row.chg_amt or '' }}</td>
+                                <td>{{ row.sub_pool_percent or '' }}</td>
+                                <td>{{ row.sb_pl_time_min or '' }}</td>
+                                <td>{{ row.anes_base or '' }}</td>
+                                <td>{{ row.med_base or '' }}</td>
+                                <td>{{ row.grp_pool_percent or '' }}</td>
+                                <td>{{ row.gr_pl_time_min or '' }}</td>
+                                <td>{{ row.grp_anes_base or '' }}</td>
+                                <td>{{ row.grp_med_base or '' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                <h4>No Transaction Data Available</h4>
+                <p class="text-muted">Upload some compensation reports to see transaction data here.</p>
+                <a href="{{ url_for('index') }}" class="btn btn-primary">
+                    <i class="fas fa-upload"></i> Upload Reports
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Search and filter functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const serviceFilter = document.getElementById('serviceFilter');
+    const insuranceFilter = document.getElementById('insuranceFilter');
+    const table = document.getElementById('transactionsTable');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    function filterTable() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const serviceType = serviceFilter.value;
+        const insuranceType = insuranceFilter.value;
+
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            const ticketRef = cells[0].textContent.toLowerCase();
+            const cptCode = cells[5].textContent.toLowerCase();
+            const service = cells[4].textContent.trim();
+
+            const matchesSearch = ticketRef.includes(searchTerm) || 
+                                cptCode.includes(searchTerm);
+            const matchesService = !serviceType || service.includes(serviceType);
+            const matchesInsurance = !insuranceType || true; // No insurance column in current data
+
+            if (matchesSearch && matchesService && matchesInsurance) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    searchInput.addEventListener('input', filterTable);
+    serviceFilter.addEventListener('change', filterTable);
+    insuranceFilter.addEventListener('change', filterTable);
+});
+</script>
+{% endblock %}

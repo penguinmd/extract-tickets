@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Compensation Analysis{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </h1>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <i class="fas fa-file-pdf fa-2x mb-2"></i>
+                <div class="stat-number">{{ stats.total_reports or 0 }}</div>
+                <div>Reports Processed</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <i class="fas fa-ticket-alt fa-2x mb-2"></i>
+                <div class="stat-number">{{ stats.total_transactions or 0 }}</div>
+                <div>Total Transactions</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <i class="fas fa-dollar-sign fa-2x mb-2"></i>
+                <div class="stat-number">${{ "{:,.0f}".format(stats.total_billed or 0) }}</div>
+                <div>Total Billed</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File Upload Section -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-upload"></i> Upload New Report
+                </h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('batch_upload') }}" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="batch_files">Select Multiple PDF Reports (Batch Upload):</label>
+                        <input type="file" class="form-control-file" name="files" id="batch_files" accept=".pdf" multiple required>
+                        <small class="form-text text-muted">
+                            Select multiple PDF files to process in batch. Hold Ctrl (or Cmd on Mac) to select multiple files.
+                        </small>
+                    </div>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-layer-group"></i> Batch Upload
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Navigation -->
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-dollar-sign fa-3x text-success mb-3"></i>
+                <h5>Compensation Data</h5>
+                <p class="text-muted">View monthly compensation summaries and trends</p>
+                <a href="{{ url_for('compensation') }}" class="btn btn-success">
+                    <i class="fas fa-arrow-right"></i> View Compensation
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-ticket-alt fa-3x text-info mb-3"></i>
+                <h5>Ticket Data</h5>
+                <p class="text-muted">Browse detailed transaction and ticket information</p>
+                <a href="{{ url_for('tickets') }}" class="btn btn-info">
+                    <i class="fas fa-arrow-right"></i> View Tickets
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-code fa-3x text-primary mb-3"></i>
+                <h5>CPT Codes</h5>
+                <p class="text-muted">Analyze CPT codes and anesthesia base units</p>
+                <a href="{{ url_for('cpt_codes') }}" class="btn btn-primary">
+                    <i class="fas fa-arrow-right"></i> View CPT Codes
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-bar fa-3x text-warning mb-3"></i>
+                <h5>Analysis & Charts</h5>
+                <p class="text-muted">Explore trends and insights with visual analytics</p>
+                <a href="{{ url_for('analysis') }}" class="btn btn-warning">
+                    <i class="fas fa-arrow-right"></i> View Analysis
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if stats.latest_period %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <strong>Latest Data:</strong> Most recent report covers period ending {{ stats.latest_period }}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

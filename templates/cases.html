@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Master Cases - Compensation Analysis{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-folder-open"></i> Master Cases
+        </h1>
+    </div>
+</div>
+
+{% if cases_data %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table"></i> Master Case Index
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <a href="{{ url_for('cases', sort_by='patient_ticket_number', sort_order='desc' if sort_by == 'patient_ticket_number' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        Patient Ticket
+                                        {% if sort_by == 'patient_ticket_number' %}
+                                            <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('cases', sort_by='asmg_units', sort_order='desc' if sort_by == 'asmg_units' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        ASMG Units
+                                        {% if sort_by == 'asmg_units' %}
+                                            <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('cases', sort_by='date_of_service', sort_order='desc' if sort_by == 'date_of_service' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        Date of Service
+                                        {% if sort_by == 'date_of_service' %}
+                                            <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('cases', sort_by='initial_start_time', sort_order='desc' if sort_by == 'initial_start_time' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        Start Time
+                                        {% if sort_by == 'initial_start_time' %}
+                                            <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('cases', sort_by='cpt_code', sort_order='desc' if sort_by == 'cpt_code' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        CPT Code
+                                        {% if sort_by == 'cpt_code' %}
+                                            <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('cases', sort_by='total_anes_time', sort_order='desc' if sort_by == 'total_anes_time' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        Total Anes Time
+                                        {% if sort_by == 'total_anes_time' %}
+                                            <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('cases', sort_by='total_anes_base_units', sort_order='desc' if sort_by == 'total_anes_base_units' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        Total Anes Units
+                                        {% if sort_by == 'total_anes_base_units' %}
+                                            <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('cases', sort_by='total_med_base_units', sort_order='desc' if sort_by == 'total_med_base_units' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        Total Med Units
+                                        {% if sort_by == 'total_med_base_units' %}
+                                            <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('cases', sort_by='total_other_units', sort_order='desc' if sort_by == 'total_other_units' and sort_order == 'asc' else 'asc') }}" class="text-decoration-none">
+                                        Total Other Units
+                                        {% if sort_by == 'total_other_units' %}
+                                            <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }}"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort text-muted"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>Initial Ticket</th>
+                                <th>Final Ticket</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for case in cases_data %}
+                            <tr>
+                                <td>{{ case.patient_ticket_number }}</td>
+                                <td>{{ "%.2f"|format(case.asmg_units) if case.asmg_units else '0.00' }}</td>
+                                <td>
+                                    {% if case.date_of_service and case.date_of_service|string != 'NaT' %}
+                                        {{ case.date_of_service.strftime('%m/%d/%Y') }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>{{ case.initial_start_time if case.initial_start_time else 'N/A' }}</td>
+                                <td>
+                                    {% if case.cpt_code %}
+                                        {% for cpt in case.cpt_code.split(', ') %}
+                                            <span class="badge bg-primary me-1">{{ cpt.strip() }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>{{ "%.1f"|format(case.total_anes_time) if case.total_anes_time else '0.0' }}</td>
+                                <td>{{ "%.1f"|format(case.total_anes_base_units) if case.total_anes_base_units else '0.0' }}</td>
+                                <td>{{ "%.1f"|format(case.total_med_base_units) if case.total_med_base_units else '0.0' }}</td>
+                                <td>{{ "%.1f"|format(case.total_other_units) if case.total_other_units else '0.0' }}</td>
+                                <td>{{ case.initial_ticket_number }}</td>
+                                <td>{{ case.final_ticket_number }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewTransactions('{{ case.id }}')">
+                                        <i class="fas fa-eye"></i> View
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                <h4>No Master Cases Found</h4>
+                <p class="text-muted">Run the case grouping process to generate master cases.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function viewTransactions(caseId) {
+    // For now, just show an alert. In the future, this could open a modal or redirect to a detail page
+    alert('Viewing transactions for case ID: ' + caseId + '\n\nThis feature will show all transactions associated with this case.');
+    
+    // Future implementation could include:
+    // - Opening a modal with transaction details
+    // - Redirecting to a filtered view of transactions
+    // - Showing case-specific analytics
+}
+
+// Add click handlers for sortable headers
+document.addEventListener('DOMContentLoaded', function() {
+    // Add hover effects for sortable headers
+    const sortableHeaders = document.querySelectorAll('th a');
+    sortableHeaders.forEach(header => {
+        header.addEventListener('mouseenter', function() {
+            this.style.color = '#007bff';
+        });
+        header.addEventListener('mouseleave', function() {
+            if (!this.querySelector('.fa-sort-down, .fa-sort-up')) {
+                this.style.color = '';
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
